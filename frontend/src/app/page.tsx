@@ -10,8 +10,8 @@ export default function LandingPage() {
     <div className="overflow-hidden pb-40 text-white">
       {/* Hero Section */}
       <section className="relative mx-auto max-w-7xl px-6 pt-16 md:px-10 md:pt-24 lg:pt-32 text-center flex flex-col items-center">
-        <h1 className="font-heading mt-10 max-w-5xl text-5xl font-bold leading-[1.05] tracking-[-0.04em] text-white md:text-7xl lg:text-[5.5rem]">
-          Veriyi <span className="bg-gradient-to-r from-sky-400 to-white bg-clip-text text-transparent">GÖRÜNÜR</span> Kılın, <br />
+        <h1 className="font-heading mt-10 max-w-5xl text-5xl font-medium leading-[1.1] tracking-tight text-white md:text-7xl lg:text-[6rem]">
+          Veriyi <span className="bg-gradient-to-r from-sky-400 to-white bg-clip-text text-transparent italic pr-2">GÖRÜNÜR</span> Kılın, <br />
           Geleceği Analiz Edin
         </h1>
         

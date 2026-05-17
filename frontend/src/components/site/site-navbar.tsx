@@ -1,9 +1,9 @@
 "use client";
 
-import { ChevronDown, Compass, Layers } from "lucide-react";
+import { Compass, Layers } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 
 import { LogoMark } from "@/components/site/brand-logo";
 import { buttonVariants } from "@/components/ui/button";
@@ -40,7 +40,9 @@ export function SiteNavbar() {
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    setMenuOpen(false);
+    startTransition(() => {
+      setMenuOpen(false);
+    });
   }, [pathname]);
 
   useEffect(() => {

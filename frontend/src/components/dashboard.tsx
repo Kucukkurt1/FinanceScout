@@ -324,7 +324,7 @@ export function Dashboard() {
       <aside className="lg:sticky lg:top-28 space-y-6">
         <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-xl">
           <h2 className="font-heading mb-6 flex items-center gap-2 text-xl font-bold text-white">
-            <BarChart3 className="size-5 text-primary" />
+            <BarChart3 className="size-5 text-white" />
             Analiz Ayarları
           </h2>
 
@@ -340,7 +340,7 @@ export function Dashboard() {
                     className={cn(
                       "rounded-xl px-3 py-2 text-[11px] font-bold transition-all",
                       pickerCategory === c.id 
-                        ? "bg-primary text-white shadow-lg shadow-primary/20" 
+                        ? "bg-white text-primary shadow-xl shadow-white/10" 
                         : "bg-white/5 text-white/60 hover:bg-white/10"
                     )}
                   >
@@ -370,14 +370,14 @@ export function Dashboard() {
                       }}
                       className={cn(
                         "flex w-full items-center justify-between px-4 py-3 text-left transition-colors",
-                        active ? "bg-primary/20 border-l-2 border-primary" : "hover:bg-white/5 border-l-2 border-transparent"
+                        active ? "bg-white/20 border-l-2 border-white" : "hover:bg-white/5 border-l-2 border-transparent"
                       )}
                     >
                       <div className="flex flex-col">
-                        <span className="text-sm font-bold text-white">{row.label}</span>
-                        <span className="text-[10px] font-medium text-white/40">{row.symbol}</span>
+                        <span className={cn("text-sm font-bold", active ? "text-white" : "text-white/90")}>{row.label}</span>
+                        <span className={cn("text-[10px] font-medium", active ? "text-white" : "text-white/40")}>{row.symbol}</span>
                       </div>
-                      {active && <div className="size-1.5 rounded-full bg-primary" />}
+                      {active && <div className="size-1.5 rounded-full bg-white shadow-[0_0_8px_white]" />}
                     </button>
                   );
                 })}
@@ -456,7 +456,7 @@ export function Dashboard() {
             </div>
             <h3 className="font-heading text-2xl font-bold text-white">Analize Hazır</h3>
             <p className="mt-4 max-w-md text-lg font-medium text-white/40">
-              Sol taraftan bir varlık seçip ayarlarınızı yapılandırdıktan sonra "Analizi Başlat" butonuna tıklayarak sonuçları görebilirsiniz.
+              Sol taraftan bir varlık seçip ayarlarınızı yapılandırdıktan sonra &ldquo;Analizi Başlat&rdquo; butonuna tıklayarak sonuçları görebilirsiniz.
             </p>
           </div>
         )}

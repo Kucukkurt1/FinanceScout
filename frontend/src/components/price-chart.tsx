@@ -30,12 +30,23 @@ function tooltipFmt(value: number | undefined) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+type TooltipPayloadEntry = {
+  dataKey?: string;
+  value?: number;
+};
+
+type CustomTooltipProps = {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+  label?: string;
+};
+
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
-    const actual = payload.find((p: any) => p.dataKey === "actual")?.value;
-    const prediction = payload.find((p: any) => p.dataKey === "future" || p.dataKey === "fit")?.value;
-    const lower = payload.find((p: any) => p.dataKey === "lower")?.value;
-    const upper = payload.find((p: any) => p.dataKey === "upper")?.value;
+    const actual = payload.find((p) => p.dataKey === "actual")?.value;
+    const prediction = payload.find((p) => p.dataKey === "future" || p.dataKey === "fit")?.value;
+    const lower = payload.find((p) => p.dataKey === "lower")?.value;
+    const upper = payload.find((p) => p.dataKey === "upper")?.value;
     
     let accuracy = null;
     if (actual && prediction) {

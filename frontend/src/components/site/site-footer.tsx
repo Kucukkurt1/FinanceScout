@@ -38,7 +38,7 @@ export function SiteFooter() {
         </div>
         {FOOTER_COL.map((col) => (
           <div key={col.title}>
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">{col.title}</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-primary">{col.title}</p>
             <ul className="mt-5 flex flex-col gap-3">
               {col.links.map((l) => (
                 <li key={l.href}>
