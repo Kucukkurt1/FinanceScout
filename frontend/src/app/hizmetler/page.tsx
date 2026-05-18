@@ -15,7 +15,9 @@ export default function HizmetlerPage() {
       <section className="relative mx-auto max-w-7xl px-6 pt-12 md:px-10 md:pt-20">
         <div className="max-w-3xl">
           <h1 className="font-heading mt-6 text-5xl font-semibold leading-[1.1] tracking-[-0.03em] text-white md:text-6xl lg:text-7xl">
-            Finansal Analizde <br /> Yeni Standartlar
+            Finansal analizde <br /> 
+            <span className="bg-gradient-to-r from-sky-400 to-white bg-clip-text text-transparent pr-2 text-[0.9em]">yeni</span> 
+            standartlar
           </h1>
           <p className="mt-8 text-lg font-medium leading-relaxed text-white/80 md:text-xl md:leading-9">
             Karmaşık verileri, yapay zeka destekli modellerle anlaşılır ve aksiyon alınabilir özetlere dönüştürüyoruz. 
@@ -212,32 +214,41 @@ export default function HizmetlerPage() {
          </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="mx-auto mt-48 max-w-7xl px-6 md:px-10">
-        <div className="relative overflow-hidden rounded-[60px] border border-white/20 bg-white/5 px-8 py-16 text-center md:py-24">
-          <div className="absolute inset-0 bg-gradient-to-b from-sky-500/10 to-transparent opacity-50" />
-          <div className="relative z-10">
-            <h2 className="font-heading text-4xl font-bold text-white md:text-6xl">
-              Analize Bugün Başlayın
-            </h2>
-            <p className="mx-auto mt-8 max-w-2xl text-lg text-white/60 font-medium md:text-xl leading-relaxed">
-              Karmaşık finansal tablolarla vakit kaybetmeyin. İhtiyacınız olan tüm özetler tek bir tık uzağınızda.
-            </p>
-            <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <Link
-                href="/analiz"
-                className={cn(buttonVariants({ variant: "brand", size: "lg" }), "h-14 px-10 w-full sm:w-auto shadow-2xl shadow-primary/20")}
-              >
-                Analiz Aracını Aç
-                <ArrowRight className="ml-2 size-5" />
-              </Link>
-              <Link
-                href="/iletisim"
-                className={cn(buttonVariants({ variant: "glass", size: "lg" }), "h-14 px-10 w-full sm:w-auto")}
-              >
-                Destek Al
-              </Link>
-            </div>
+      {/* CTA Section - Ambient & Minimalist Style */}
+      <section className="relative mx-auto mt-64 max-w-5xl px-6 text-center md:px-10">
+        {/* Background Ambient Glows */}
+        <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 size-[500px] -translate-x-1/2 -translate-y-1/2 bg-sky-500/15 blur-[120px] rounded-full" />
+        <div className="pointer-events-none absolute left-1/3 top-1/3 -z-10 size-[300px] -translate-x-1/2 -translate-y-1/2 bg-purple-500/10 blur-[100px] rounded-full" />
+
+        <div className="relative flex flex-col items-center">
+          <div className="relative -left-[1.8em] mb-10 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 backdrop-blur-md">
+             <div className="size-1.5 rounded-full bg-sky-400 animate-pulse" />
+             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">şimdi başla</span>
+          </div>
+
+          <h2 className="font-heading text-center text-6xl font-bold text-white md:text-8xl lg:text-9xl tracking-tighter leading-[0.85]">
+            <span className="relative -left-[0.12em]">Analize</span><br />
+            <span className="bg-gradient-to-r from-sky-400 to-white bg-clip-text text-transparent">bugün</span> başlayın
+          </h2>
+
+          <p className="mt-12 max-w-xl text-lg text-white/40 font-medium leading-relaxed mx-auto">
+            Karmaşık finansal tablolarla vakit kaybetmeyin. ihtiyacınız olan tüm özetler tek bir tık uzağınızda.
+          </p>
+
+          <div className="mt-16 flex flex-col items-center gap-8 sm:flex-row">
+            <Link
+              href="/analiz"
+              className={cn(buttonVariants({ variant: "brand", size: "lg" }), "h-20 px-16 text-xl rounded-2xl shadow-3xl shadow-primary/40 transition-all hover:scale-105 active:scale-95")}
+            >
+              Analiz merkezini aç
+            </Link>
+            <Link
+              href="/iletisim"
+              className="group flex items-center gap-2 text-sm font-bold text-white/30 hover:text-white transition-colors"
+            >
+              Destek al
+              <ArrowRight className="size-4 group-hover:translate-x-1 transition-transform" />
+            </Link>
           </div>
         </div>
       </section>

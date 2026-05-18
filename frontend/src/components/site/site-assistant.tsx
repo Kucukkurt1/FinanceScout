@@ -84,11 +84,15 @@ export function SiteAssistant() {
     inputRef.current?.focus();
   }, [msgs, open, loading]);
 
-  const send = useCallback(async () => {
-    const t = input.trim();
+  const send = useCallback(async (textOverride?: string) => {
+    const t = (textOverride ?? input).trim();
     if (!t || loading) return;
     setInput("");
     setErr(null);
+    
+    // msgs state'ine erişmek için functional update kullanıyoruz, 
+    // böylece 'send' her mesaj geldiğinde yeniden oluşturulmak zorunda kalmaz (isteğe bağlı optimizasyon).
+    // Ancak mevcut yapıda 'msgs' bağımlılığı olduğu için onu koruyarak en basit şekilde ilerleyelim.
     const next: Msg[] = [...msgs, { role: "user", content: t }];
     setMsgs(next);
     setLoading(true);
@@ -130,23 +134,13 @@ export function SiteAssistant() {
       const customEv = e as CustomEvent<{ question: string }>;
       if (customEv.detail?.question) {
         setOpen(true);
-        setInput(customEv.detail.question);
-        // State'in güncellenmesini bekle ve form submit işlemini manuel simüle et
-        // Basitlik için burada doğrudan 'send' mantığını çağırabiliriz veya input değişimini bekleyebiliriz.
-        // Ancak en garantisi input set edildikten sonra butona basılmış gibi davranmaktır.
+        // Doğrudan gönderim tetikle
+        void send(customEv.detail.question);
       }
     }
     window.addEventListener("fs-ask-assistant" as any, handleExternalAsk);
     return () => window.removeEventListener("fs-ask-assistant" as any, handleExternalAsk);
-  }, []);
-
-  // Harici input değiştiğinde otomatik gönderim için bir watch ekleyelim
-  useEffect(() => {
-    if (open && input && !loading && msgs[msgs.length-1].role !== 'user' && (input.includes('tahmini') || input.includes('Nedir'))) {
-       // Bu kısım biraz riskli olabilir, o yüzden en iyisi butona basılmasını beklemek 
-       // veya harici tetikleyiciyi doğrudan send ile bağlamak.
-    }
-  }, [input, open]);
+  }, [send]);
 
   return (
     <div className="pointer-events-none fixed bottom-5 right-5 z-[150] flex flex-col items-end gap-3 md:bottom-8 md:right-8">

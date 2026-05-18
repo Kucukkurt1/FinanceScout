@@ -145,18 +145,20 @@ export default function ApplicationHomePage() {
       <section className="mx-auto mt-40 max-w-7xl px-6 md:px-10">
         <div className="rounded-[50px] border border-white/10 bg-slate-950/40 p-10 md:p-20 relative overflow-hidden">
            <div className="absolute top-0 right-0 size-96 bg-primary/10 blur-[100px] -z-10" />
-           <div className="max-w-2xl">
+           <div className="">
               <h2 className="font-heading text-4xl font-bold mb-8">Finansal Okuryazarlık <br /> ve AI Metodolojisi</h2>
               <p className="text-white/60 text-lg leading-relaxed mb-12">
-                 Sistemimizin ürettiği verileri daha iyi anlamak için temel kavramlara göz atın. Bilinçli analiz, başarılı stratejinin ilk adımıdır.
+                 Sistemimizin ürettiği verileri daha iyi anlamak için temel kavramlara göz atın. Bilinçli analiz, başarılı stratejinin ilk adımıdır. Bu teknik terimler, modellerimizin sunduğu sonuçları doğru yorumlamanıza ve risklerinizi daha iyi yönetmenize yardımcı olur.
               </p>
               
-              <div className="grid gap-10 md:grid-cols-2">
+              <div className="grid gap-10 md:grid-cols-3">
                  {[
                    { t: "RMSE Nedir?", d: "Modelin gerçek fiyatlardan ortalama ne kadar saptığını gösteren hata payı ölçüsüdür." },
                    { t: "Trend Mevsimselliği", d: "Fiyatın haftalık veya aylık olarak kendini tekrarlayan döngüsel hareketleridir." },
                    { t: "Oynaklık (Volatility)", d: "Varlığın fiyatındaki dalgalanma şiddeti. Yüksek oynaklık yüksek risk demektir." },
                    { t: "Güven Aralığı", d: "Fiyatın %95 ihtimalle içinde kalması beklenen en düşük ve en yüksek koridorudur." },
+                   { t: "Backtest Skoru", d: "Modelin geçmiş veriler üzerindeki başarısını puanlayan doğruluk metriğidir." },
+                   { t: "Logaritmik Getiri", d: "Fiyat değişimlerini normalize ederek ekstrem dalgalanmaları daha net görmeyi sağlar." },
                  ].map(k => (
                    <div key={k.t} className="space-y-3 text-left">
                       <h4 className="font-bold text-sky-400"># {k.t}</h4>
