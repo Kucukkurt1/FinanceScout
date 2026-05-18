@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
+import {
+  AnalysisHubPanels,
+  type HubMode,
+} from "@/components/tools/analysis-hub-panels";
+
+import { SITE_NAV_CLEARANCE } from "@/components/site/page-header";
 import { PriceChart, type ChartRow } from "@/components/price-chart";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,9 +18,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { AssetClassParam, BacktestApiResponse, ForecastApiResponse, Metrics } from "@/lib/api";
 import { fetchSymbols, postBacktest, postForecast } from "@/lib/api";
+import { STORAGE_KEYS, writeJson, type LastAnalysisSnapshot } from "@/lib/storage";
 import {
   INSTRUMENT_CATEGORY_META,
   INSTRUMENTS_BY_CATEGORY,
+  inferInstrumentFromSymbol,
   type InstrumentCategoryId,
 } from "@/lib/instruments";
 
@@ -193,7 +202,19 @@ function MetricsSection({
   );
 }
 
+const HUB_MODES: HubMode[] = ["compare", "portfolio", "quality", "calendar"];
+
+const WORKSPACE_TABS: { id: "forecast" | HubMode; label: string }[] = [
+  { id: "forecast", label: "Tahmin" },
+  { id: "compare", label: "Karşılaştır" },
+  { id: "portfolio", label: "Portföy taslağı" },
+  { id: "quality", label: "Veri kalitesi" },
+  { id: "calendar", label: "Olay takvimi" },
+];
+
 export function Dashboard() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [symbol, setSymbol] = useState("USDTRY=X");
   const [assetClass, setAssetClass] = useState<AssetClassParam>("fx");
   const [pickerCategory, setPickerCategory] = useState<InstrumentCategoryId>("fx");
@@ -208,6 +229,81 @@ export function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [forecast, setForecast] = useState<ForecastApiResponse | null>(null);
   const [backtest, setBacktest] = useState<BacktestApiResponse | null>(null);
+
+  const workspaceParam = searchParams.get("workspace");
+  const workspace: "forecast" | HubMode =
+    workspaceParam && HUB_MODES.includes(workspaceParam as HubMode)
+      ? (workspaceParam as HubMode)
+      : "forecast";
+
+  function goWorkspace(next: "forecast" | HubMode) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "forecast") params.delete("workspace");
+    else params.set("workspace", next);
+    const qs = params.toString();
+    router.replace(qs ? `/analiz?${qs}` : "/analiz");
+  }
+
+  useEffect(() => {
+    const sym = searchParams.get("symbol");
+    const ac = searchParams.get("asset_class") as AssetClassParam | null;
+    const hist = searchParams.get("history");
+    const fc = searchParams.get("forecast");
+    const cutoff = searchParams.get("cutoff");
+    const tu = searchParams.get("train_until");
+
+    if (sym) {
+      const upper = sym.trim().toUpperCase();
+      setSymbol(upper);
+      const inferred = inferInstrumentFromSymbol(upper);
+      setPickerCategory(inferred.category);
+      if (ac && ["auto", "crypto", "fx", "stock"].includes(ac)) setAssetClass(ac);
+      else setAssetClass(inferred.profile);
+    } else if (ac && ["auto", "crypto", "fx", "stock"].includes(ac)) {
+      setAssetClass(ac);
+    }
+
+    if (hist) setHistoryDays(Number(hist));
+    if (fc) setForecastDays(Number(fc));
+    if (cutoff === "1" || tu) {
+      setUseTrainCutoff(true);
+      if (tu) setTrainUntil(tu);
+    }
+
+    if (searchParams.get("run") === "1" && workspace !== "forecast") {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("workspace");
+      router.replace(`/analiz?${params.toString()}`);
+    }
+  }, [searchParams, workspace, router]);
+
+  const autoRunInflight = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("run") !== "1") {
+      autoRunInflight.current = null;
+      return;
+    }
+    if (workspace !== "forecast") return;
+
+    const symParam = searchParams.get("symbol")?.trim().toUpperCase();
+    if (!symParam || autoRunInflight.current === symParam) return;
+
+    autoRunInflight.current = symParam;
+    const inferred = inferInstrumentFromSymbol(symParam);
+    setSymbol(symParam);
+    setAssetClass(inferred.profile);
+    setPickerCategory(inferred.category);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("run");
+    const qs = params.toString();
+    router.replace(qs ? `/analiz?${qs}` : "/analiz", { scroll: false });
+
+    void run({ symbol: symParam, asset_class: inferred.profile }).finally(() => {
+      if (autoRunInflight.current === symParam) autoRunInflight.current = null;
+    });
+  }, [searchParams, workspace, router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -244,33 +340,43 @@ export function Dashboard() {
     return null;
   }, [symUpper]);
 
-  async function run() {
+  async function run(overrides?: { symbol?: string; asset_class?: AssetClassParam }) {
     setError(null);
     setForecast(null);
     setBacktest(null);
-    
-    // Değerleri limitlere göre sınırla (Clamping)
+
     const finalHistory = Math.min(Math.max(historyDays, 60), 3650);
     const finalForecast = Math.min(Math.max(forecastDays, 1), 90);
-    
+
     setHistoryDays(finalHistory);
     setForecastDays(finalForecast);
 
     setLoading(true);
     try {
-      const sym = symbol.trim().toUpperCase();
+      const sym = (overrides?.symbol ?? symbol).trim().toUpperCase();
       if (!sym) throw new Error("Lütfen bir sembol yazın (örnek: BTC-USD).");
+
+      const ac = overrides?.asset_class ?? assetClass;
 
       const fc = await postForecast({
         symbol: sym,
         history_days: finalHistory,
         forecast_days: finalForecast,
-        asset_class: assetClass,
+        asset_class: ac,
         ...(useTrainCutoff && trainUntil.trim()
           ? { train_until: trainUntil.trim(), data_start: dataStart.trim() || undefined }
           : {}),
       });
       setForecast(fc);
+      writeJson(STORAGE_KEYS.lastAnalysis, {
+        symbol: sym,
+        asset_class: fc.asset_class,
+        history_days: finalHistory,
+        forecast_days: finalForecast,
+        train_until: useTrainCutoff ? trainUntil.trim() : undefined,
+        forecast: fc,
+        saved_at: new Date().toISOString(),
+      } satisfies LastAnalysisSnapshot);
 
       const holdoutReady =
         Boolean(fc.train_until_used) &&
@@ -289,9 +395,9 @@ export function Dashboard() {
         try {
           const bt = await postBacktest({
             symbol: sym,
-            history_days: historyDays,
+            history_days: finalHistory,
             test_fraction: 0.2,
-            asset_class: assetClass,
+            asset_class: ac,
             ...(useTrainCutoff && trainUntil.trim()
               ? { train_until: trainUntil.trim(), data_start: dataStart.trim() || undefined }
               : {}),
@@ -316,12 +422,17 @@ export function Dashboard() {
     }
   }
 
-  const showEmptyHint = !forecast && !loading;
+  const showEmptyHint = workspace === "forecast" && !forecast && !loading;
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl items-start gap-8 px-6 pb-20 pt-0 lg:grid-cols-[380px_1fr]">
+    <div
+      className={cn(
+        "mx-auto grid w-full max-w-[96rem] items-start gap-6 pb-20 pt-0 lg:grid-cols-[minmax(280px,320px)_minmax(0,1fr)] lg:gap-8",
+        SITE_NAV_CLEARANCE,
+      )}
+    >
       {/* Sol Panel: Ayarlar */}
-      <aside className="lg:sticky lg:top-28 space-y-6">
+      <aside className="space-y-6 lg:sticky lg:top-28 lg:self-start">
         <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-xl">
           <h2 className="font-heading mb-6 flex items-center gap-2 text-xl font-bold text-white">
             <BarChart3 className="size-5 text-white" />
@@ -430,8 +541,8 @@ export function Dashboard() {
               </div>
             </div>
 
-            <Button 
-              onClick={run} 
+            <Button
+              onClick={() => void run()}
               disabled={loading}
               className={cn(buttonVariants({ variant: "brand", size: "lg" }), "w-full shadow-2xl shadow-primary/20")}
             >
@@ -448,7 +559,31 @@ export function Dashboard() {
       </aside>
 
       {/* Sağ Panel: Grafikler ve Sonuçlar */}
-      <main className="min-h-[600px] space-y-8">
+      <main className="min-h-[600px] min-w-0 w-full space-y-8">
+        <div className="flex flex-wrap gap-2">
+          {WORKSPACE_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => goWorkspace(tab.id)}
+              className={cn(
+                "rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wide transition-all",
+                workspace === tab.id
+                  ? "bg-primary text-white shadow-lg shadow-primary/20"
+                  : "border border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {workspace !== "forecast" ? (
+          <div className="rounded-[40px] border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl">
+            <AnalysisHubPanels mode={workspace} />
+          </div>
+        ) : null}
+
         {showEmptyHint && (
           <div className="flex h-full min-h-[600px] flex-col items-center justify-center rounded-[40px] border border-dashed border-white/10 bg-white/5 p-20 text-center">
             <div className="flex size-20 items-center justify-center rounded-3xl bg-white/5 text-white/20 mb-8">
@@ -461,7 +596,7 @@ export function Dashboard() {
           </div>
         )}
 
-        {loading && (
+        {workspace === "forecast" && loading && (
           <div className="space-y-8">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[...Array(4)].map((_, i) => (
@@ -472,7 +607,7 @@ export function Dashboard() {
           </div>
         )}
 
-        {forecast && !loading && (
+        {workspace === "forecast" && forecast && !loading && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8">
             {/* Metrik Kartları */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -503,7 +638,7 @@ export function Dashboard() {
             </div>
 
             {/* Grafik Alanı */}
-            <div className="rounded-[40px] border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl">
+            <div className="w-full min-w-0 rounded-[40px] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur-xl sm:p-8">
                <Tabs defaultValue="forecast">
                   <div className="mb-8 flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
                      <div>
@@ -512,6 +647,11 @@ export function Dashboard() {
                            <div className="rounded-full bg-primary/20 px-3 py-1 text-[10px] font-bold text-primary uppercase tracking-tighter">
                               {assetLabelTr(forecast.asset_class)}
                            </div>
+                           {forecast.backtest_metrics.regime ? (
+                             <div className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold text-white/80 uppercase">
+                               {forecast.backtest_metrics.regime === "high_vol" ? "Yüksek vol rejimi" : "Düşük vol rejimi"}
+                             </div>
+                           ) : null}
                         </div>
                         <p className="mt-2 text-sm font-medium text-white/50">
                            Yapay zeka modellerimiz tarafından oluşturulan öngörü raporu.
@@ -523,10 +663,8 @@ export function Dashboard() {
                      </TabsList>
                   </div>
 
-                  <TabsContent value="forecast" className="mt-0 outline-none">
-                     <div className="h-[450px] w-full">
-                        <PriceChart data={forecastChart} />
-                     </div>
+                  <TabsContent value="forecast" className="mt-0 w-full min-w-0 outline-none">
+                     <PriceChart data={forecastChart} className="w-full" />
                      <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl bg-sky-500/10 p-5 border border-sky-500/20">
                         <div className="flex items-center gap-3">
                            <div className="size-2 rounded-full bg-white animate-pulse" />
@@ -538,14 +676,14 @@ export function Dashboard() {
                      </div>
                   </TabsContent>
 
-                  <TabsContent value="backtest" className="mt-0 outline-none">
-                     <div className="h-[450px] w-full">
-                        {backtest ? (
-                           <PriceChart data={backtestChart} />
-                        ) : (
-                           <div className="flex h-full items-center justify-center text-white/20">Veri bulunamadı.</div>
-                        )}
-                     </div>
+                  <TabsContent value="backtest" className="mt-0 w-full min-w-0 outline-none">
+                     {backtest ? (
+                       <PriceChart data={backtestChart} className="w-full" />
+                     ) : (
+                       <div className="flex min-h-[420px] items-center justify-center text-white/20">
+                         Veri bulunamadı.
+                       </div>
+                     )}
                      <div className="mt-8 rounded-2xl bg-purple-500/10 p-6 border border-purple-500/20">
                         <h4 className="text-purple-200 font-bold text-sm mb-2 uppercase tracking-wide">Bu Tarihler Neyi Gösteriyor?</h4>
                         <p className="text-xs font-medium text-purple-200/80 leading-relaxed">

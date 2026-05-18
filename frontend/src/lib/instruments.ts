@@ -23,6 +23,39 @@ export const INSTRUMENT_CATEGORY_META: {
   { id: "commodity", title: "Emtia", blurb: "Altın, petrol vb. (=F)." },
 ];
 
+export function getAllInstruments(): InstrumentOption[] {
+  return INSTRUMENT_CATEGORY_META.flatMap((c) => INSTRUMENTS_BY_CATEGORY[c.id]);
+}
+
+/** Piyasa özeti / derin linkler için sembol → profil ve liste kategorisi. */
+export function inferInstrumentFromSymbol(symbol: string): {
+  profile: Exclude<AssetClassParam, "auto">;
+  category: InstrumentCategoryId;
+} {
+  const upper = symbol.trim().toUpperCase();
+  for (const meta of INSTRUMENT_CATEGORY_META) {
+    const hit = INSTRUMENTS_BY_CATEGORY[meta.id].find((r) => r.symbol === upper);
+    if (hit) return { profile: hit.profile, category: meta.id };
+  }
+  if (upper.endsWith("=X")) return { profile: "fx", category: "fx" };
+  if (upper.endsWith(".IS")) return { profile: "stock", category: "bist" };
+  if (upper.endsWith("=F")) return { profile: "stock", category: "commodity" };
+  if (upper.startsWith("^")) return { profile: "stock", category: "index" };
+  if (upper.includes("-")) return { profile: "crypto", category: "crypto" };
+  return { profile: "stock", category: "us_stock" };
+}
+
+export function analizForecastHref(symbol: string): string {
+  const upper = symbol.trim().toUpperCase();
+  const { profile } = inferInstrumentFromSymbol(upper);
+  const params = new URLSearchParams({
+    symbol: upper,
+    asset_class: profile,
+    run: "1",
+  });
+  return `/analiz?${params.toString()}`;
+}
+
 export const INSTRUMENTS_BY_CATEGORY: Record<InstrumentCategoryId, InstrumentOption[]> = {
   fx: [
     { symbol: "USDTRY=X", label: "ABD Doları / Türk Lirası", profile: "fx" },

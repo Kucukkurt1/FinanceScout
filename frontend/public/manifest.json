@@ -1,0 +1,17 @@
+{
+  "name": "FinanceScout",
+  "short_name": "FinanceScout",
+  "description": "AI destekli finans analizi ve tahmin",
+  "start_url": "/home",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0ea5e9",
+  "lang": "tr",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}
