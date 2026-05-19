@@ -1,28 +1,49 @@
 from __future__ import annotations
 
 import math
+import uuid
+from datetime import date, datetime, timezone
 from typing import Any
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
+from instrumentation import init_sentry
+
+init_sentry()
+
+from compare_service import compare_symbols
 from data_service import fetch_history, fetch_history_range, fetch_market_summary
+from events import list_events
+from events_impact import analyze_event_impact
 from model_profiles import get_profile, resolve_asset_class
 from prophet_service import backtest_split, cutoff_train_forecast, fit_and_forecast
+from quality_service import analyze_quality
+from request_log import RequestLogMiddleware, increment_quota
 from schemas import (
     BacktestRequest,
     BacktestResponse,
+    CompareRequest,
+    CompareResponse,
+    EventImpactRequest,
+    EventImpactResponse,
+    EventsListResponse,
+    FeedbackRequest,
+    FeedbackResponse,
     ForecastRequest,
     ForecastResponse,
     HealthResponse,
+    MarketEventOut,
     MarketItem,
     MarketSummaryResponse,
     Metrics,
+    QualityResponse,
     SeriesPoint,
+    SymbolCompareStats,
 )
 
-app = FastAPI(title="FinanceScout API", version="0.1.0")
+app = FastAPI(title="FinanceScout API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,6 +56,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestLogMiddleware)
+
+_FEEDBACK_STORE: list[dict[str, Any]] = []
 
 
 def _finite_or_none(x: Any) -> float | None:
@@ -50,6 +74,9 @@ def _finite_or_none(x: Any) -> float | None:
 
 
 def _metrics_from_dict(d: dict[str, Any]) -> Metrics:
+    regime = d.get("regime")
+    if regime not in ("low_vol", "high_vol"):
+        regime = None
     return Metrics(
         rmse=_finite_or_none(d.get("rmse")),
         mae=_finite_or_none(d.get("mae")),
@@ -58,6 +85,9 @@ def _metrics_from_dict(d: dict[str, Any]) -> Metrics:
         volatility_annualization_days=d.get("volatility_annualization_days"),
         holdout_points=d.get("holdout_points"),
         mean_bias=_finite_or_none(d.get("mean_bias")),
+        regime=regime,
+        walk_forward_rmse=_finite_or_none(d.get("walk_forward_rmse")),
+        conformal_half_width=_finite_or_none(d.get("conformal_half_width")),
     )
 
 
@@ -134,9 +164,94 @@ def symbols_search(q: str = Query("", min_length=0, max_length=32)) -> dict:
     return {"symbols": hits[:20]}
 
 
+@app.get("/events", response_model=EventsListResponse)
+def events(
+    from_date: date | None = Query(None, alias="from"),
+    to_date: date | None = Query(None, alias="to"),
+) -> EventsListResponse:
+    rows = list_events(from_date, to_date)
+    return EventsListResponse(
+        events=[
+            MarketEventOut(
+                date=e.date.isoformat(),
+                title=e.title,
+                category=e.category,
+                symbols=e.symbols,
+            )
+            for e in rows
+        ]
+    )
+
+
+@app.post("/events/impact", response_model=EventImpactResponse)
+def event_impact(body: EventImpactRequest) -> EventImpactResponse:
+    try:
+        ed = date.fromisoformat(body.event_date.strip())
+        result = analyze_event_impact(
+            body.symbol,
+            ed,
+            body.category.strip().lower(),
+            event_title=body.event_title,
+            window_days=body.window_days,
+        )
+        return EventImpactResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Event impact error: {e!s}") from e
+
+
+@app.post("/compare", response_model=CompareResponse)
+def compare(body: CompareRequest) -> CompareResponse:
+    try:
+        result = compare_symbols(body.symbols, body.history_days)
+        return CompareResponse(
+            symbols=[SymbolCompareStats(**s) for s in result["symbols"]],
+            correlation_labels=result["correlation_labels"],
+            correlation=result["correlation"],
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Compare error: {e!s}") from e
+
+
+@app.get("/quality", response_model=QualityResponse)
+def quality(
+    symbol: str = Query(..., min_length=1),
+    history_days: int = Query(365, ge=30, le=3650),
+) -> QualityResponse:
+    try:
+        result = analyze_quality(symbol, history_days)
+        return QualityResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Quality error: {e!s}") from e
+
+
+@app.post("/feedback", response_model=FeedbackResponse)
+def feedback(body: FeedbackRequest) -> FeedbackResponse:
+    entry_id = str(uuid.uuid4())
+    received = datetime.now(timezone.utc).isoformat()
+    _FEEDBACK_STORE.append(
+        {
+            "id": entry_id,
+            "received_at": received,
+            "rating": body.rating,
+            "message": body.message,
+            "symbol": body.symbol,
+            "endpoint": body.endpoint,
+        }
+    )
+    return FeedbackResponse(id=entry_id, received_at=received)
+
+
 @app.post("/forecast", response_model=ForecastResponse)
 def forecast(body: ForecastRequest) -> ForecastResponse:
     try:
+        symbol = body.symbol.strip().upper()
+        increment_quota(symbol)
         asset_class = resolve_asset_class(body.symbol, body.asset_class)
         profile = get_profile(asset_class)
         hist = _load_history(body.symbol, body.history_days, body.train_until, body.data_start)
@@ -169,7 +284,7 @@ def forecast(body: ForecastRequest) -> ForecastResponse:
                 ]
 
             return ForecastResponse(
-                symbol=body.symbol.strip().upper(),
+                symbol=symbol,
                 asset_class=asset_class,
                 history=history_points,
                 forecast=forecast_points,
@@ -187,7 +302,7 @@ def forecast(body: ForecastRequest) -> ForecastResponse:
         metrics = _metrics_from_dict(mdict)
 
         return ForecastResponse(
-            symbol=body.symbol.strip().upper(),
+            symbol=symbol,
             asset_class=asset_class,
             history=history_points,
             forecast=forecast_points,
@@ -205,6 +320,8 @@ def forecast(body: ForecastRequest) -> ForecastResponse:
 @app.post("/backtest", response_model=BacktestResponse)
 def backtest(body: BacktestRequest) -> BacktestResponse:
     try:
+        symbol = body.symbol.strip().upper()
+        increment_quota(symbol)
         asset_class = resolve_asset_class(body.symbol, body.asset_class)
         profile = get_profile(asset_class)
         hist = _load_history(body.symbol, body.history_days, body.train_until, body.data_start)
@@ -232,7 +349,7 @@ def backtest(body: BacktestRequest) -> BacktestResponse:
             metrics = _metrics_from_dict(mdict)
 
             return BacktestResponse(
-                symbol=body.symbol.strip().upper(),
+                symbol=symbol,
                 asset_class=asset_class,
                 metrics=metrics,
                 test_actual=test_actual,
@@ -257,7 +374,7 @@ def backtest(body: BacktestRequest) -> BacktestResponse:
         metrics = _metrics_from_dict(mdict)
 
         return BacktestResponse(
-            symbol=body.symbol.strip().upper(),
+            symbol=symbol,
             asset_class=asset_class,
             metrics=metrics,
             test_actual=test_actual,

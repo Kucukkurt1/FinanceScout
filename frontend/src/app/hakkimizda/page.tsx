@@ -1,4 +1,5 @@
 import { SimpleArticle } from "@/components/site/simple-article";
+import { FeedbackPanel } from "@/components/tools/feedback-panel";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -10,9 +11,10 @@ export default function HakkimizdaPage() {
     <SimpleArticle
       title="Hakkımızda"
       description="FinanceScout; karmaşık piyasa verilerini stratejik öngörülere dönüştüren, modern ve şeffaf bir finansal analiz ekosistemidir."
+      wide
     >
-      <section>
-        <p>
+      <section className="!mt-0">
+        <p className="max-w-none text-base leading-relaxed text-white/85 md:text-lg md:leading-8">
           FinanceScout, finans dünyasının gürültüsünü azaltmak ve veri odaklı karar alma süreçlerini desteklemek amacıyla
           geliştirilmiş bir dijital platformdur. Amacımız, sadece fiyat hareketlerini göstermek değil; bu hareketlerin
           ardındaki trendleri ve olası gelecek senaryolarını bilimsel modellerle anlaşılır kılmaktır.
@@ -50,31 +52,22 @@ export default function HakkimizdaPage() {
         </p>
       </section>
 
-      <section>
-        <h2>Kurucu Ekibimiz</h2>
-        <p>
-          FinanceScout, teknoloji ve finansı bir araya getiren vizyoner bir ekip tarafından hayata geçirilmiştir.
-          Sorularınız veya iş birliği talepleriniz için bize ulaşabilirsiniz:
+      <section id="geri-bildirim" className="scroll-mt-28 not-prose !mt-14">
+        <h2 className="font-heading text-2xl font-semibold tracking-tight text-white md:text-3xl">Geri bildirim</h2>
+        <p className="mt-3 max-w-4xl text-[15px] leading-relaxed text-white/65">
+          Öneri, hata raporu veya özellik isteğinizi paylaşın; öncelik vermek istediğiniz geliştirmeyi seçin.
         </p>
-        <ul className="not-italic">
-          <li>
-            <strong>Kurucu Ortak & Yazılım Geliştirici:</strong> Mehmet Emin Küçükkurt
-          </li>
-          <li>
-            <strong>Veri Bilimcisi:</strong> Ahmet Topçu
-          </li>
-          <li>
-            <strong>Finansal Analist:</strong> Ataman Gazozcu
-          </li>
-        </ul>
+        <div className="mt-6">
+          <FeedbackPanel variant="about" />
+        </div>
       </section>
 
-      <section>
-        <h2>Önemli Not</h2>
-        <p>
+      <section className="!mt-14 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-5 py-5 md:px-6">
+        <h2 className="!mt-0 text-lg font-semibold text-amber-100/90">Önemli Not</h2>
+        <p className="mt-3 text-[15px] leading-relaxed text-white/75">
           FinanceScout bir demo ve öğrenme platformudur. Sunulan analizler, tahminler ve grafikler tamamen algoritmik
-          modellerin çıktılarıdır ve kesinlikle <strong>yatırım tavsiyesi niteliği taşımaz</strong>. Platformumuz
-          üzerinde gerçek bir bankacılık, portföy yönetimi veya aracılık hizmeti sunulmamaktadır.
+          modellerin çıktılarıdır ve kesinlikle <strong className="text-white">yatırım tavsiyesi niteliği taşımaz</strong>.
+          Platformumuz üzerinde gerçek bir bankacılık, portföy yönetimi veya aracılık hizmeti sunulmamaktadır.
         </p>
       </section>
     </SimpleArticle>

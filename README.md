@@ -23,7 +23,13 @@ uvicorn main:app --reload --port 8000
 
 API dokümantasyonu: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-Özet uçlar: `GET /health`, `GET /symbols/search`, `POST /forecast`, `POST /backtest`. İstek gövdelerinde opsiyonel `asset_class`: `auto` | `crypto` | `fx` | `stock`. **`train_until` + opsiyonel `data_start`**: kesit modunda model yalnızca `train_until` (dahil) tarihine kadar eğitilir; sonraki gerçek kapanışlarla RMSE/MAE ve ortalama bias hesaplanır.
+Özet uçlar: `GET /health`, `GET /symbols/search`, `GET /market-summary`, `POST /forecast`, `POST /backtest`, `POST /compare`, `GET /quality`, `GET /events`, `POST /events/impact`, `POST /feedback`. İstek gövdelerinde opsiyonel `asset_class`: `auto` | `crypto` | `fx` | `stock`. **`train_until` + opsiyonel `data_start`**: kesit modunda model yalnızca `train_until` (dahil) tarihine kadar eğitilir; sonraki gerçek kapanışlarla RMSE/MAE ve ortalama bias hesaplanır.
+
+### Frontend sayfaları
+
+- **Analiz merkezi** (`/analiz`): tahmin, karşılaştır, portföy taslağı, veri kalitesi, olay takvimi
+- **Kurumsal:** `/home`, `/hizmetler`, `/hakkimizda`, `/iletisim`, `/guvenlik`, `/yardim`, yasal sayfalar
+- Landing: `/`
 
 ### Tarayıcıda «NetworkError / Failed to fetch»
 

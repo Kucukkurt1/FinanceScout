@@ -3,136 +3,107 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import yfinance as yf
+from cachetools import TTLCache
+
+_RANGE_CACHE: TTLCache = TTLCache(maxsize=128, ttl=300)
+
+
+def _cache_key_range(symbol: str, start: str, end: str | None) -> str:
+    return f"r:{symbol.strip().upper()}:{start}:{end or ''}"
 
 
 def fetch_history(symbol: str, history_days: int) -> pd.DataFrame:
-    """Download daily OHLCV; returns DataFrame with DatetimeIndex and 'Close' column."""
-    symbol = symbol.strip().upper()
-    df = yf.download(
-        symbol,
-        period=f"{history_days}d",
-        interval="1d",
-        progress=False,
-        auto_adjust=False,
-    )
-    if df is None or df.empty:
-        raise ValueError(f"No data returned for symbol '{symbol}'. Check the ticker.")
+    from data_sources import fetch_range_chain
 
-    # Flatten MultiIndex columns when yfinance returns tuple levels
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-
-    if "Close" not in df.columns:
-        raise ValueError(f"Unexpected response shape for '{symbol}' (missing Close).")
-
-    close = df["Close"].astype(float)
-    close = close.dropna()
-    if close.empty:
-        raise ValueError(f"Close series is empty for '{symbol}'.")
-
-    out = close.reset_index()
-    # Column may be 'Date' or index name from reset_index
-    date_col = out.columns[0]
-    out = out.rename(columns={date_col: "ds", "Close": "y"})
-    out["ds"] = pd.to_datetime(out["ds"]).dt.normalize().dt.tz_localize(None)
-    out = out.drop_duplicates(subset=["ds"]).sort_values("ds").reset_index(drop=True)
-    return out[["ds", "y"]]
+    end = pd.Timestamp.today().strftime("%Y-%m-%d")
+    start = (pd.Timestamp.today() - pd.DateOffset(days=history_days + 30)).strftime("%Y-%m-%d")
+    return fetch_range_chain(symbol, start, end).tail(history_days + 5)
 
 
 def fetch_history_range(symbol: str, start: str, end: str | None = None) -> pd.DataFrame:
-    """İki tarih arası günlük kapanış (kesit analizi ve tarih sonrası karşılaştırma için)."""
-    symbol = symbol.strip().upper()
-    # Yahoo Finance `end` çoğu sürümde üst sınırı hariç tutar; bir gün ileri vererek bugünü dahil etmeye çalış.
-    end_param = end
-    if end_param:
-        end_ts = pd.Timestamp(end_param).normalize() + pd.Timedelta(days=1)
-        end_param = end_ts.strftime("%Y-%m-%d")
+    """Daily close between start and end (inclusive when end is set)."""
+    from data_sources import fetch_range_chain
 
-    if end_param:
-        df = yf.download(
-            symbol,
-            start=start,
-            end=end_param,
-            interval="1d",
-            progress=False,
-            auto_adjust=False,
-        )
-    else:
-        df = yf.download(
-            symbol,
-            start=start,
-            interval="1d",
-            progress=False,
-            auto_adjust=False,
-        )
-    if df is None or df.empty:
-        raise ValueError(f"No data returned for symbol '{symbol}' in range {start} → {end or 'now'}.")
+    key = _cache_key_range(symbol, start, end)
+    if key in _RANGE_CACHE:
+        return _RANGE_CACHE[key].copy()
 
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
+    df = fetch_range_chain(symbol, start, end)
+    _RANGE_CACHE[key] = df.copy()
+    return df
 
-    if "Close" not in df.columns:
-        raise ValueError(f"Unexpected response shape for '{symbol}' (missing Close).")
 
-    close = df["Close"].astype(float)
-    close = close.dropna()
-    if close.empty:
-        raise ValueError(f"Close series is empty for '{symbol}'.")
+_MARKET_NAMES = {
+    "BTC-USD": "Bitcoin",
+    "USDTRY=X": "Dolar / TL",
+    "GC=F": "Altın (Ons)",
+    "^GSPC": "S&P 500",
+    "THYAO.IS": "Türk Hava Yolları",
+}
 
-    out = close.reset_index()
-    date_col = out.columns[0]
-    out = out.rename(columns={date_col: "ds", "Close": "y"})
-    out["ds"] = pd.to_datetime(out["ds"]).dt.normalize().dt.tz_localize(None)
-    out = out.drop_duplicates(subset=["ds"]).sort_values("ds").reset_index(drop=True)
-    return out[["ds", "y"]]
+
+def _summary_from_history(sym: str, hist: pd.DataFrame) -> dict | None:
+    if hist is None or hist.empty:
+        return None
+    close_col = "Close" if "Close" in hist.columns else hist.columns[-1]
+    closes = hist[close_col].dropna()
+    if len(closes) < 2:
+        return None
+    current_price = float(closes.iloc[-1])
+    prev_price = float(closes.iloc[-2])
+    if prev_price == 0:
+        return None
+    change_pct = ((current_price - prev_price) / prev_price) * 100
+    return {
+        "symbol": sym,
+        "price": current_price,
+        "change_pct": change_pct,
+        "name": _MARKET_NAMES.get(sym, sym),
+    }
+
+
+def _fetch_one_market_symbol(sym: str) -> dict | None:
+    try:
+        hist = yf.Ticker(sym).history(period="5d", interval="1d", auto_adjust=True)
+        return _summary_from_history(sym, hist)
+    except Exception:
+        return None
 
 
 def fetch_market_summary(symbols: list[str]) -> list[dict]:
-    """Birden fazla sembol için son fiyat ve günlük değişim bilgilerini topluca çeker."""
-    results = []
+    """Son fiyat ve günlük değişim — önce toplu, olmazsa sembol sembol."""
+    results: list[dict] = []
+    pending = list(symbols)
+
     try:
-        # download ile tüm sembolleri tek seferde çekmek daha hızlıdır.
-        df = yf.download(symbols, period="5d", interval="1d", progress=False, group_by='ticker')
-        
-        for sym in symbols:
-            try:
-                # Group by ticker yapınca MultiIndex döner: (Symbol, Column)
-                if len(symbols) > 1:
-                    ticker_df = df[sym]
-                else:
-                    ticker_df = df
-                    
-                ticker_df = ticker_df.dropna(subset=["Close"])
-                if ticker_df.empty or len(ticker_df) < 2:
+        df = yf.download(pending, period="5d", interval="1d", progress=False, group_by="ticker", auto_adjust=True)
+        if df is not None and not df.empty:
+            for sym in pending:
+                try:
+                    if len(pending) > 1:
+                        ticker_df = df[sym].copy()
+                    else:
+                        ticker_df = df.copy()
+                    row = _summary_from_history(sym, ticker_df)
+                    if row:
+                        results.append(row)
+                except Exception:
                     continue
-                
-                last_two = ticker_df["Close"].tail(2)
-                current_price = float(last_two.iloc[-1])
-                prev_price = float(last_two.iloc[-2])
-                change_pct = ((current_price - prev_price) / prev_price) * 100
-                
-                # İsim bilgisi için ayrı bir eşleme kullanabiliriz veya sembolü isim olarak bırakabiliriz.
-                # ticker.info çok yavaş olduğu için burada kullanmamak daha iyi.
-                friendly_names = {
-                    "BTC-USD": "Bitcoin",
-                    "USDTRY=X": "Dolar / TL",
-                    "GC=F": "Altın (Ons)",
-                    "^GSPC": "S&P 500",
-                    "THYAO.IS": "Türk Hava Yolları"
-                }
-                
-                results.append({
-                    "symbol": sym,
-                    "price": current_price,
-                    "change_pct": change_pct,
-                    "name": friendly_names.get(sym, sym)
-                })
-            except Exception:
-                continue
     except Exception:
         pass
-        
+
+    got = {r["symbol"] for r in results}
+    for sym in pending:
+        if sym in got:
+            continue
+        row = _fetch_one_market_symbol(sym)
+        if row:
+            results.append(row)
+
+    order = {s: i for i, s in enumerate(symbols)}
+    results.sort(key=lambda r: order.get(r["symbol"], 999))
     return results
+
 
 def daily_returns_volatility(prices: pd.Series, annualization: int = 252) -> tuple[float, float]:
     """Log-return daily std and annualized std."""
@@ -142,4 +113,3 @@ def daily_returns_volatility(prices: pd.Series, annualization: int = 252) -> tup
     daily = float(r.std(ddof=1))
     annual = daily * (annualization**0.5)
     return daily, annual
-

@@ -30,6 +30,7 @@ export const metadata: Metadata = {
   },
   description:
     "Şeffaf süreçler ve güvenilir veri özetleri ile piyasa analizi deneyimi. Bilgilendirme amaçlıdır; yatırım tavsiyesi değildir.",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({

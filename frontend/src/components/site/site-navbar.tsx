@@ -11,12 +11,10 @@ import { cn } from "@/lib/utils";
 
 const NAV_GROUPS = [
   {
-    title: "Gezinme",
+    title: "Analiz",
     icon: Compass,
     links: [
       { href: "/home", label: "Ana sayfa" },
-      { href: "/hizmetler", label: "Hizmetler" },
-      { href: "/guvenlik", label: "Güvenlik" },
       { href: "/analiz", label: "Analiz merkezi" },
     ],
   },
@@ -24,6 +22,8 @@ const NAV_GROUPS = [
     title: "Kurumsal",
     icon: Layers,
     links: [
+      { href: "/hizmetler", label: "Hizmetler" },
+      { href: "/guvenlik", label: "Güvenlik" },
       { href: "/hakkimizda", label: "Hakkımızda" },
       { href: "/iletisim", label: "İletişim" },
       { href: "/yardim", label: "Yardım merkezi" },
@@ -53,9 +53,6 @@ export function SiteNavbar() {
     function onPointerDown(e: MouseEvent | TouchEvent) {
       const el = shellRef.current;
       const btn = buttonRef.current;
-      
-      // Eğer tıklanan yer sidebar (el) DEĞİLSE ve buton (btn) DEĞİLSE kapat.
-      // Butona tıklandığında butonun kendi onClick'i çalışmalı.
       if (el && !el.contains(e.target as Node) && btn && !btn.contains(e.target as Node)) {
         setMenuOpen(false);
       }
@@ -72,7 +69,6 @@ export function SiteNavbar() {
 
   return (
     <>
-      {/* Üst Bar - Logo ve Hızlı Aksiyon */}
       <header className="fixed inset-x-0 top-0 z-[130] flex items-center justify-between px-6 py-4 md:px-8">
         <div className="flex items-center gap-4">
           <button
@@ -82,14 +78,12 @@ export function SiteNavbar() {
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((v) => !v)}
           >
-            <div className="relative">
-              <LogoMark className="size-11 rounded-xl shadow-lg transition-transform group-hover:scale-105 sm:size-12" />
-            </div>
+            <LogoMark className="size-11 rounded-xl shadow-lg transition-transform group-hover:scale-105 sm:size-12" />
             <div className="flex flex-col items-start leading-tight">
               <span
                 className={cn(
                   "font-sans text-lg font-bold tracking-tight transition-colors duration-300",
-                  menuOpen ? "text-primary" : "text-white"
+                  menuOpen ? "text-primary" : "text-white",
                 )}
               >
                 FinanceScout
@@ -97,7 +91,7 @@ export function SiteNavbar() {
               <span
                 className={cn(
                   "text-[11px] font-medium transition-colors duration-300",
-                  menuOpen ? "text-muted-foreground" : "text-white/70"
+                  menuOpen ? "text-muted-foreground" : "text-white/70",
                 )}
               >
                 Menüyü {menuOpen ? "Kapat" : "Aç"}
@@ -107,24 +101,17 @@ export function SiteNavbar() {
         </div>
 
         <div className="flex items-center gap-4">
-          <Link
-            href="/analiz"
-            className={cn(
-              buttonVariants({ variant: "brand", size: "sm" }),
-              "hidden px-6 sm:flex"
-            )}
-          >
+          <Link href="/analiz" className={cn(buttonVariants({ variant: "brand", size: "sm" }), "hidden px-6 sm:flex")}>
             Hızlı Analiz
           </Link>
         </div>
       </header>
 
-      {/* Sol Kenar Menü (Sidebar) - En Alta Kadar İlerleyen Yapı */}
       <div
         ref={shellRef}
         className={cn(
           "bg-background/95 border-border fixed inset-y-0 left-0 z-[120] w-72 border-r shadow-2xl backdrop-blur-xl transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] md:w-80",
-          menuOpen ? "translate-x-0" : "-translate-x-full"
+          menuOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <div className="flex h-full flex-col pt-24">
@@ -138,15 +125,18 @@ export function SiteNavbar() {
                 </div>
                 <ul className="space-y-1">
                   {group.links.map((link) => {
-                    const active = pathname === link.href || (link.href !== "/home" && pathname.startsWith(`${link.href}/`));
+                    const active =
+                      pathname === link.href ||
+                      (link.href !== "/home" && pathname.startsWith(`${link.href}/`));
                     return (
-                      <li key={link.href}>                        <Link
+                      <li key={link.href}>
+                        <Link
                           href={link.href}
                           className={cn(
                             "flex items-center gap-3 rounded-xl px-4 py-3 text-[15px] font-medium transition-all",
                             active
                               ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                              : "text-foreground hover:bg-muted hover:pl-5"
+                              : "text-foreground hover:bg-muted hover:pl-5",
                           )}
                           onClick={() => setMenuOpen(false)}
                         >
@@ -159,7 +149,7 @@ export function SiteNavbar() {
               </div>
             ))}
           </nav>
-          
+
           <div className="border-border/50 bg-muted/30 border-t p-6">
             <p className="text-muted-foreground text-xs leading-relaxed">
               © 2026 FinanceScout <br />
@@ -169,15 +159,7 @@ export function SiteNavbar() {
         </div>
       </div>
 
-      {/* Karartma Örtüsü (Overlay) - Blur kaldırıldı, şeffaf yapıldı */}
-      {menuOpen && (
-        <div
-          className="fixed inset-0 z-[110] bg-transparent transition-opacity duration-500"
-          onClick={() => setMenuOpen(false)}
-        />
-      )}
+      {menuOpen && <div className="fixed inset-0 z-[110] bg-transparent transition-opacity duration-500" onClick={() => setMenuOpen(false)} />}
     </>
   );
 }
-
-

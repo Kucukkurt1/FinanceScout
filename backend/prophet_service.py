@@ -8,7 +8,10 @@ from prophet import Prophet
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 from data_service import daily_returns_volatility
+from events import fomc_holiday_dates
+from lstm_service import blend_with_prophet
 from model_profiles import ProphetModelProfile, get_profile
+from sentiment_service import sentiment_for_training
 
 
 # ---------------------------------------------------------------------------
@@ -104,23 +107,18 @@ def _prophet_ready(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _build_prophet(train_rows: int, profile: ProphetModelProfile) -> Prophet:
-    # FX 24/5 işlem görür ve günlük kapanışlar haftalık döngü göstermez;
-    # weekly_seasonality oraya zorlandığında 9-günlük tahminde sebepsiz
-    # V dalgaları oluşturuyor. Hisselerde daha anlamlı.
     weekly = profile.asset_class == "stock"
+    holidays = _fomc_holidays_df()
     return Prophet(
         daily_seasonality=False,
         weekly_seasonality=weekly,
         yearly_seasonality=(train_rows > 180),
         changepoint_prior_scale=profile.changepoint_prior_scale,
         seasonality_prior_scale=3.0,
-        # Log-uzayında her zaman additive (raw uzayda multiplicative davranır
-        # ama trendle compound etmez); profile.seasonality_mode artık etkisiz.
         seasonality_mode="additive",
-        # Trend changepoint'lerinin ilk %85'lik dilimde aranması: en son
-        # birkaç haftanın aşırı dominant olmasını engeller.
         changepoint_range=0.85,
         interval_width=0.8,
+        holidays=holidays if len(holidays) > 0 else None,
     )
 
 
@@ -266,14 +264,20 @@ def _clamp_future_path(
 # ---------------------------------------------------------------------------
 
 
-def _run_prophet(train: pd.DataFrame, horizon_days: int, profile: ProphetModelProfile) -> pd.DataFrame:
-    """Prophet'i **raw-domain**'de additive seasonality ile eğitir.
+def _fomc_holidays_df() -> pd.DataFrame:
+    rows = []
+    for ds in fomc_holiday_dates():
+        rows.append({"holiday": "fomc", "ds": pd.Timestamp(ds), "lower_window": 0, "upper_window": 1})
+    return pd.DataFrame(rows)
 
-    Önceki sürümde log-domain kullanılıyordu; ancak log uzayındaki lineer
-    trend, ham uzayda exponansiyel olduğundan uzun ufuklarda (örn. 73 günlük
-    backtest holdout'unda) overshoot yapıyordu. Raw-domain + additive ile
-    trend tahmini lineer kalıyor; long-horizon hatalar dramatik olarak azalıyor.
-    """
+
+def _run_prophet(
+    train: pd.DataFrame,
+    horizon_days: int,
+    profile: ProphetModelProfile,
+    sentiment: pd.Series | None = None,
+) -> pd.DataFrame:
+    """Prophet'i **raw-domain**'de additive seasonality ile eğitir."""
     df = train[["ds", "y"]].copy()
     df = df.dropna(subset=["y"])
 
@@ -281,11 +285,93 @@ def _run_prophet(train: pd.DataFrame, horizon_days: int, profile: ProphetModelPr
         raise ValueError("Eğitim için fiyat değeri yok.")
 
     m = _build_prophet(len(df), profile)
-    m.fit(df[["ds", "y"]])
+
+    reg = sentiment
+    if reg is None:
+        reg = sentiment_for_training(df["ds"])
+    if reg is not None and len(reg) == len(df):
+        df = df.copy()
+        df["event_intensity"] = reg.to_numpy(dtype=float)
+        m.add_regressor("event_intensity", standardize=True)
+
+    fit_cols = ["ds", "y"]
+    if "event_intensity" in df.columns:
+        fit_cols.append("event_intensity")
+    m.fit(df[fit_cols])
     future_df = m.make_future_dataframe(periods=int(horizon_days), freq="D")
+    if "event_intensity" in df.columns:
+        future_df["event_intensity"] = 0.0
+        hist_map = df.set_index("ds")["event_intensity"]
+        future_df.loc[future_df["ds"].isin(hist_map.index), "event_intensity"] = future_df.loc[
+            future_df["ds"].isin(hist_map.index), "ds"
+        ].map(hist_map)
     fc = m.predict(future_df).reset_index(drop=True)
 
     return fc[["ds", "yhat", "yhat_lower", "yhat_upper"]].copy()
+
+
+def conformal_bands(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    alpha: float = 0.2,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Symmetric conformal residual bands around predictions."""
+    residuals = np.abs(np.asarray(y_true, dtype=float) - np.asarray(y_pred, dtype=float))
+    if len(residuals) == 0:
+        return np.zeros_like(y_pred), np.zeros_like(y_pred)
+    q = float(np.quantile(residuals, 1.0 - alpha))
+    y_pred = np.asarray(y_pred, dtype=float)
+    return y_pred - q, y_pred + q
+
+
+def detect_regime(history: pd.DataFrame, lookback: int = 60) -> str:
+    """Classify recent volatility vs longer sample median."""
+    df = _prophet_ready(history)
+    y = df["y"].astype(float)
+    if len(y) < lookback + 20:
+        return "low_vol"
+    long_vol, _ = daily_returns_volatility(y, annualization=252)
+    short_vol, _ = daily_returns_volatility(y.tail(lookback), annualization=252)
+    if not np.isfinite(long_vol) or not np.isfinite(short_vol) or long_vol <= 0:
+        return "low_vol"
+    return "high_vol" if short_vol > long_vol * 1.25 else "low_vol"
+
+
+def walk_forward_backtest(
+    history: pd.DataFrame,
+    profile: ProphetModelProfile,
+    train_window: int = 180,
+    test_horizon: int = 21,
+    step: int = 21,
+) -> dict[str, Any]:
+    """Rolling walk-forward RMSE over fixed train/test windows."""
+    df = _prophet_ready(history)
+    n = len(df)
+    if n < train_window + test_horizon + 14:
+        return {"walk_forward_rmse": None, "folds": 0}
+
+    rmses: list[float] = []
+    start = train_window
+    while start + test_horizon <= n:
+        train = df.iloc[start - train_window : start].copy()
+        test = df.iloc[start : start + test_horizon].copy()
+        fc = _run_prophet(train[["ds", "y"]], test_horizon + 7, profile)
+        fc = _assemble_forecast(train[["ds", "y"]], fc, profile)
+        merged = pd.merge(
+            test[["ds", "y"]],
+            fc[["ds", "yhat"]].drop_duplicates("ds"),
+            on="ds",
+            how="inner",
+        )
+        if len(merged) >= 3:
+            err = merged["y"].to_numpy(dtype=float) - merged["yhat"].to_numpy(dtype=float)
+            rmses.append(float(np.sqrt(np.mean(err**2))))
+        start += step
+
+    if not rmses:
+        return {"walk_forward_rmse": None, "folds": 0}
+
+    return {"walk_forward_rmse": float(np.mean(rmses)), "folds": len(rmses)}
 
 
 def _anchor_to_last_price(
@@ -423,6 +509,7 @@ def cutoff_train_forecast(
     last_train = train["ds"].max()
     horizon_days = int((last_actual - last_train).days) + int(forecast_days) + 7
 
+    regime = detect_regime(df)
     fc = _run_prophet(train[["ds", "y"]], horizon_days, profile)
     fc = _assemble_forecast(train[["ds", "y"]], fc, profile)
 
@@ -439,11 +526,14 @@ def cutoff_train_forecast(
     )
 
     vol_d, vol_a = daily_returns_volatility(df["y_orig"], annualization=profile.volatility_annualization)
+    wf = walk_forward_backtest(df[["ds", "y_orig"]].rename(columns={"y_orig": "y"}), profile)
     metrics: dict[str, Any] = {
         "volatility_daily": vol_d,
         "volatility_annualized": vol_a,
         "volatility_annualization_days": profile.volatility_annualization,
         "holdout_points": len(merged_holdout),
+        "regime": regime,
+        "walk_forward_rmse": wf.get("walk_forward_rmse"),
     }
 
     if len(merged_holdout) >= 3:
@@ -453,6 +543,8 @@ def cutoff_train_forecast(
         metrics["mae"] = float(mean_absolute_error(y_true, y_pred))
         metrics["mean_actual"] = float(np.mean(y_true))
         metrics["mean_bias"] = float(np.mean(y_pred - y_true))
+        lower_c, upper_c = conformal_bands(y_true, y_pred)
+        metrics["conformal_half_width"] = float(np.mean(upper_c - y_pred))
 
     future_tail = fc_final[fc_final["ds"] > last_actual].head(int(forecast_days)).copy()
     return fc_final, future_tail, merged_holdout, metrics
@@ -470,6 +562,14 @@ def fit_and_forecast(
 
     fc = _run_prophet(df[["ds", "y"]], int(forecast_days), prof)
     fc = _assemble_forecast(df[["ds", "y"]], fc, prof)
+
+    train_y = df["y"].to_numpy(dtype=float)
+    is_future = fc["ds"] > df["ds"].max()
+    if is_future.any():
+        fut_yhat = fc.loc[is_future, "yhat"].to_numpy(dtype=float)
+        blended = blend_with_prophet(fut_yhat, train_y, len(fut_yhat), prophet_rmse=None)
+        if blended is not None:
+            fc.loc[is_future, "yhat"] = blended
 
     fc = pd.merge(fc, df[["ds", "y_orig"]], on="ds", how="left")
     fc = fc.rename(columns={"y_orig": "y"})
@@ -508,12 +608,17 @@ def backtest_split(
     rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
 
     vol_d, vol_a = daily_returns_volatility(df["y"], annualization=prof.volatility_annualization)
+    wf = walk_forward_backtest(df[["ds", "y"]], prof)
     metrics = {
         "rmse": rmse,
         "mae": float(mean_absolute_error(y_true, y_pred)),
         "volatility_daily": vol_d,
         "volatility_annualized": vol_a,
         "volatility_annualization_days": prof.volatility_annualization,
+        "regime": detect_regime(df),
+        "walk_forward_rmse": wf.get("walk_forward_rmse"),
     }
+    lower_c, upper_c = conformal_bands(y_true, y_pred)
+    metrics["conformal_half_width"] = float(np.mean(upper_c - y_pred))
 
     return metrics, merged[["ds", "y"]], merged[["ds", "yhat", "yhat_lower", "yhat_upper"]]
