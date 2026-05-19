@@ -606,12 +606,17 @@ def backtest_split(
     y_true = merged["y"].to_numpy(dtype=float)
     y_pred = merged["yhat"].to_numpy(dtype=float)
     rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
+    
+    with np.errstate(divide="ignore", invalid="ignore"):
+        abs_pct_err = np.abs((y_true - y_pred) / y_true)
+        mape = np.mean(abs_pct_err[np.isfinite(abs_pct_err)])
 
     vol_d, vol_a = daily_returns_volatility(df["y"], annualization=prof.volatility_annualization)
     wf = walk_forward_backtest(df[["ds", "y"]], prof)
     metrics = {
         "rmse": rmse,
         "mae": float(mean_absolute_error(y_true, y_pred)),
+        "mape": float(mape) if np.isfinite(mape) else 0.0,
         "volatility_daily": vol_d,
         "volatility_annualized": vol_a,
         "volatility_annualization_days": prof.volatility_annualization,
@@ -622,3 +627,4 @@ def backtest_split(
     metrics["conformal_half_width"] = float(np.mean(upper_c - y_pred))
 
     return metrics, merged[["ds", "y"]], merged[["ds", "yhat", "yhat_lower", "yhat_upper"]]
+

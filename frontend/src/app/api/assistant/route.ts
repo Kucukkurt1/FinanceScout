@@ -17,7 +17,52 @@ const MAX_TURNS = 24;
 const SYSTEM = `Sen FinanceScout sitesinin yardımcı asistanısın. Türkçe yanıt ver; kısa ve net ol.
 Site: finansal veri özeti, Prophet tabanlı tahmin/grafik arayüzü ve bilgilendirici içerikler sunar.
 Yatırım tavsiyesi verme; "bilgilendirme amaçlıdır" uyarısını gerektiğinde hatırlat.
-Kullanıcı teknik soru sorarsa genel düzeyde açıkla; API anahtarı veya gizli bilgi isteme.`;
+
+KULLANICI TAHMİN/KUR SORARSA:
+- 'get_forecast' aracını kullanarak güncel veriyi ve tahmini al.
+- Gelen veriye göre (RMSE, MAE vb.) modelin güvenilirliğini ve yönü (artış/azalış) yorumla.
+- Yanıtında mutlaka "Analiz sonucuna göre..." diyerek başla.
+- Eğer sembolü tam çıkaramazsan en yakın tahmini (örn. "dolar" için "USDTRY=X") kullan.`;
+
+const TOOLS = [
+  {
+    function_declarations: [
+      {
+        name: "get_forecast",
+        description: "Belirtilen finansal sembol (ticker) için geçmiş verileri ve gelecek tahminlerini getirir. Örn: 'USDTRY=X', 'BTC-USD', 'GC=F', 'THYAO.IS'.",
+        parameters: {
+          type: "object",
+          properties: {
+            symbol: {
+              type: "string",
+              description: "Tahmin edilecek finansal sembol (örn: USDTRY=X).",
+            },
+          },
+          required: ["symbol"],
+        },
+      },
+    ],
+  },
+];
+
+async function callBackendForecast(symbol: string) {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  try {
+    const res = await fetch(`${baseUrl}/forecast`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        symbol,
+        history_days: 365,
+        forecast_days: 14,
+      }),
+    });
+    if (!res.ok) return { error: `Backend hatası: ${res.status}` };
+    return await res.json();
+  } catch (err) {
+    return { error: "Backend'e ulaşılamadı." };
+  }
+}
 
 type ChatMsg = { role: "user" | "assistant"; content: string };
 
@@ -73,33 +118,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Mesaj listesi gerekli." }, { status: 400 });
   }
 
-  for (const m of messages) {
-    if (m.role !== "user" && m.role !== "assistant") {
-      return NextResponse.json({ error: "Geçersiz mesaj rolü." }, { status: 400 });
-    }
-    if (typeof m.content !== "string" || !m.content.trim()) {
-      return NextResponse.json({ error: "Boş mesaj." }, { status: 400 });
-    }
-  }
-
   const trimmed = trimHistory(messages);
   let start = 0;
   while (start < trimmed.length && trimmed[start].role === "assistant") {
     start += 1;
   }
   const forModel = trimmed.slice(start);
-  if (forModel.length === 0 || forModel[forModel.length - 1].role !== "user") {
-    return NextResponse.json({ error: "Son mesaj kullanıcıdan olmalı." }, { status: 400 });
-  }
 
   const contents = forModel.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content.slice(0, 4000) }],
   }));
 
-  const payload = {
+  const payload: any = {
     systemInstruction: { parts: [{ text: SYSTEM }] },
     contents,
+    tools: TOOLS,
     generationConfig: {
       temperature: 0.65,
       maxOutputTokens: 1024,
@@ -111,82 +145,73 @@ export async function POST(req: Request) {
   for (const model of modelCandidates()) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
 
-    const upstream = await fetch(url, {
+    let response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
-    const raw = await upstream.text();
-    let data: Record<string, unknown>;
-    try {
-      data = JSON.parse(raw) as Record<string, unknown>;
-    } catch {
-      lastFail = { status: 502, message: "Model yanıtı okunamadı." };
-      continue;
+    let data = await response.json();
+
+    if (!response.ok) {
+      lastFail = { status: response.status, message: data.error?.message || "Model hatası." };
+      if (isWrongModelError(response.status, lastFail.message)) continue;
+      return NextResponse.json({ error: lastFail.message }, { status: response.status });
     }
 
-    const errMsg = String((data as { error?: { message?: string } }).error?.message || "");
-    const errLower = errMsg.toLowerCase();
+    let candidate = data.candidates?.[0];
+    let part = candidate?.content?.parts?.[0];
 
-    if (!upstream.ok) {
-      lastFail = { status: upstream.status, message: errMsg || `Model hatası (${upstream.status}).` };
+    // Eğer model bir fonksiyon çağırmak istiyorsa
+    if (part?.functionCall) {
+      const { name, args } = part.functionCall;
+      if (name === "get_forecast") {
+        const forecastData = await callBackendForecast(args.symbol);
 
-      const quotaHit =
-        upstream.status === 429 ||
-        errLower.includes("quota") ||
-        errLower.includes("resource exhausted") ||
-        errLower.includes("rate limit");
+        // Aracı çalıştırdıktan sonra sonucu tekrar modele gönder
+        const toolResponsePayload = {
+          systemInstruction: { parts: [{ text: SYSTEM }] },
+          contents: [
+            ...contents,
+            { role: "model", parts: [part] },
+            {
+              role: "function",
+              parts: [
+                {
+                  functionResponse: {
+                    name: "get_forecast",
+                    response: { content: forecastData },
+                  },
+                },
+              ],
+            },
+          ],
+          generationConfig: payload.generationConfig,
+        };
 
-      if (quotaHit) {
-        return NextResponse.json(
-          {
-            error:
-              "Gemini kotası veya plan limiti: bir süre bekleyin, AI Studio’da kullanımı kontrol edin veya faturalandırmayı açın. İsterseniz .env.local içinde başka bir GEMINI_MODEL deneyin (ör. gemini-2.5-flash).",
-          },
-          { status: upstream.status >= 400 && upstream.status < 600 ? upstream.status : 502 },
-        );
+        const secondResponse = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(toolResponsePayload),
+        });
+
+        const secondData = await secondResponse.json();
+        const finalCandidate = secondData.candidates?.[0];
+        const finalText = finalCandidate?.content?.parts?.[0]?.text || "";
+
+        return NextResponse.json({
+          reply: finalText,
+          forecastData: forecastData.error ? null : forecastData,
+          model_used: model,
+        });
       }
-
-      if (upstream.status === 403) {
-        return NextResponse.json({ error: errMsg || "API anahtarı geçersiz veya erişim reddedildi." }, { status: 403 });
-      }
-
-      if (isWrongModelError(upstream.status, errMsg)) {
-        continue;
-      }
-
-      return NextResponse.json(
-        { error: lastFail.message },
-        { status: upstream.status >= 400 && upstream.status < 600 ? upstream.status : 502 },
-      );
     }
 
-    const gemCandidates = (data as { candidates?: unknown[] }).candidates;
-    const first = Array.isArray(gemCandidates) ? gemCandidates[0] : undefined;
-    const parts = (first as { content?: { parts?: { text?: string }[] } } | undefined)?.content?.parts;
-    const text =
-      Array.isArray(parts) && parts[0]?.text
-        ? String(parts[0].text)
-        : "";
-
-    if (!text) {
-      const reason = (first as { finishReason?: string } | undefined)?.finishReason;
-      return NextResponse.json(
-        { error: reason ? `Yanıt üretilemedi (${reason}).` : "Yanıt üretilemedi." },
-        { status: 502 },
-      );
-    }
+    const text = part?.text || "";
+    if (!text) continue;
 
     return NextResponse.json({ reply: text, model_used: model });
   }
 
-  return NextResponse.json(
-    {
-      error:
-        lastFail?.message ||
-        "Hiçbir model adı bu API anahtarı ile kullanılamadı. Google AI Studio’da geçerli model listesine bakın ve GEMINI_MODEL değerini güncelleyin.",
-    },
-    { status: 502 },
-  );
+  return NextResponse.json({ error: "Yanıt üretilemedi." }, { status: 502 });
 }

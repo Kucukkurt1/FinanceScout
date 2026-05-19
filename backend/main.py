@@ -80,6 +80,7 @@ def _metrics_from_dict(d: dict[str, Any]) -> Metrics:
     return Metrics(
         rmse=_finite_or_none(d.get("rmse")),
         mae=_finite_or_none(d.get("mae")),
+        mape=_finite_or_none(d.get("mape")),
         volatility_daily=_finite_or_none(d.get("volatility_daily")),
         volatility_annualized=_finite_or_none(d.get("volatility_annualized")),
         volatility_annualization_days=d.get("volatility_annualization_days"),

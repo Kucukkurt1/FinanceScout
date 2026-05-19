@@ -38,6 +38,7 @@ class SeriesPoint(BaseModel):
 class Metrics(BaseModel):
     rmse: float | None = None
     mae: float | None = None
+    mape: float | None = Field(None, description="Mean Absolute Percentage Error (0-1 arası)")
     volatility_daily: float | None = None
     volatility_annualized: float | None = None
     volatility_annualization_days: int | None = None

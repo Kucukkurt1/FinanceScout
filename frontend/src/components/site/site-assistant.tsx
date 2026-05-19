@@ -1,14 +1,43 @@
 "use client";
 
-import { Loader2, MessageCircle, Send, Sparkles, X } from "lucide-react";
+import { Loader2, MessageCircle, Send, Sparkles, X, TrendingUp } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import type { ForecastApiResponse, SeriesPoint } from "@/lib/api";
+import { PriceChart, type ChartRow } from "@/components/price-chart";
 
 type Role = "user" | "assistant";
 
-type Msg = { role: Role; content: string };
+type Msg = { 
+  role: Role; 
+  content: string; 
+  forecastData?: ForecastApiResponse | null;
+};
+
+function mapToChartRows(resp: ForecastApiResponse): ChartRow[] {
+  const rows: ChartRow[] = [];
+  // Geçmiş veriler (son 30 gün kafi chat içinde kalabalık yapmasın)
+  const historyLimit = resp.history.slice(-30);
+  historyLimit.forEach((p) => {
+    rows.push({
+      ds: p.ds,
+      actual: p.y,
+      fit: p.yhat,
+    });
+  });
+  // Gelecek tahminleri
+  resp.forecast.forEach((p) => {
+    rows.push({
+      ds: p.ds,
+      future: p.yhat,
+      lower: p.yhat_lower,
+      upper: p.yhat_upper,
+    });
+  });
+  return rows;
+}
 
 function formatChatMarkdown(text: string): ReactNode {
   const lines = text.split("\n");
@@ -106,7 +135,7 @@ export function SiteAssistant() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: next }),
       });
-      const data = (await res.json()) as { reply?: string; error?: string };
+      const data = (await res.json()) as { reply?: string; forecastData?: ForecastApiResponse | null; error?: string };
       if (!res.ok) {
         setErr(data.error || "Bir hata oluştu.");
         setMsgs((m) => m.slice(0, -1));
@@ -117,7 +146,7 @@ export function SiteAssistant() {
         setMsgs((m) => m.slice(0, -1));
         return;
       }
-      setMsgs([...next, { role: "assistant", content: data.reply }]);
+      setMsgs([...next, { role: "assistant", content: data.reply, forecastData: data.forecastData }]);
     } catch {
       setErr("Bağlantı hatası.");
       setMsgs((m) => m.slice(0, -1));
@@ -183,16 +212,33 @@ export function SiteAssistant() {
           className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-gradient-to-b from-transparent to-white/[0.02] px-5 py-5 custom-scrollbar"
         >
           {msgs.map((m, i) => (
-            <div
-              key={`${i}-${m.role}`}
-              className={cn(
-                "max-w-[85%] rounded-2xl border px-4 py-3 text-[13px] leading-relaxed shadow-lg",
-                m.role === "user"
-                  ? "ml-auto border-primary/40 bg-primary text-white shadow-primary/20"
-                  : "mr-auto border-white/10 bg-white/5 text-white/90 backdrop-blur-md",
+            <div key={`${i}-${m.role}`} className="flex flex-col gap-2">
+              <div
+                className={cn(
+                  "max-w-[85%] rounded-2xl border px-4 py-3 text-[13px] leading-relaxed shadow-lg",
+                  m.role === "user"
+                    ? "ml-auto border-primary/40 bg-primary text-white shadow-primary/20"
+                    : "mr-auto border-white/10 bg-white/5 text-white/90 backdrop-blur-md",
+                )}
+              >
+                {formatChatMarkdown(m.content)}
+              </div>
+              
+              {m.forecastData && (
+                <div className="mr-auto w-full max-w-[95%] overflow-hidden rounded-2xl border border-white/10 bg-slate-900/50 p-1 shadow-2xl backdrop-blur-md">
+                  <div className="flex items-center justify-between border-b border-white/5 bg-white/5 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="size-3.5 text-amber-400" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/70">
+                        {m.forecastData.symbol} AI Tahmini
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-[180px] w-full p-2">
+                    <PriceChart data={mapToChartRows(m.forecastData)} height={160} />
+                  </div>
+                </div>
               )}
-            >
-              {formatChatMarkdown(m.content)}
             </div>
           ))}
           {loading ? (

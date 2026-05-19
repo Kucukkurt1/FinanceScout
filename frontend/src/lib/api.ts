@@ -45,6 +45,7 @@ export type SeriesPoint = {
 export type Metrics = {
   rmse?: number | null;
   mae?: number | null;
+  mape?: number | null;
   volatility_daily?: number | null;
   volatility_annualized?: number | null;
   volatility_annualization_days?: number | null;

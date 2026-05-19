@@ -156,6 +156,7 @@ function MetricsSection({
         </p>
       ) : null}
       <div className="grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-5">
+        <MetricTile title="Hata Payı (%)" hint="Modelin tahminlerinin gerçek fiyatlardan ortalama yüzde kaç saptığını gösterir. %5 altı mükemmel, %10 altı başarılı kabul edilir." value={fmtPct(m.mape)} />
         <MetricTile title="RMSE" hint={rmseHint} value={fmtNum(m.rmse)} />
         <MetricTile
           title="MAE"
@@ -612,7 +613,7 @@ export function Dashboard() {
             {/* Metrik Kartları */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                {[
-                 { label: "Hata Payı (RMSE)", value: fmtNum(forecast.backtest_metrics.rmse), icon: Zap },
+                 { label: "Hata Payı (RMSE)", value: fmtNum(forecast.backtest_metrics.rmse) },
                  { label: "Günlük Oynaklık", value: fmtPct(forecast.backtest_metrics.volatility_daily), icon: TrendingUp },
                  { label: "Yıllık Tahmini", value: fmtPct(forecast.backtest_metrics.volatility_annualized), icon: Globe },
                  { label: "Risk Skoru", value: riskFromVol(forecast.backtest_metrics.volatility_annualized).label, badge: true, icon: ShieldCheck }
@@ -620,7 +621,7 @@ export function Dashboard() {
                  <div key={m.label} className="group rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-md transition-all hover:bg-white/10">
                     <div className="flex items-center justify-between mb-3">
                        <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">{m.label}</p>
-                       <m.icon className="size-4 text-primary opacity-40 group-hover:opacity-100 transition-opacity" />
+                       {m.icon && <m.icon className={cn("size-4 opacity-40 group-hover:opacity-100 transition-opacity", (m as any).iconColor || "text-primary")} />}
                     </div>
                     <div className="flex items-baseline gap-2">
                        {!m.badge && <span className="text-2xl font-bold text-white tabular-nums">{m.value}</span>}
@@ -644,7 +645,7 @@ export function Dashboard() {
                      <div>
                         <div className="flex items-center gap-3">
                            <h3 className="font-heading text-3xl font-bold text-white">{forecast.symbol} Analizi</h3>
-                           <div className="rounded-full bg-primary/20 px-3 py-1 text-[10px] font-bold text-primary uppercase tracking-tighter">
+                           <div className="rounded-full bg-sky-500/10 px-3 py-1 text-[10px] font-bold text-sky-400 uppercase tracking-tighter border border-sky-500/20">
                               {assetLabelTr(forecast.asset_class)}
                            </div>
                            {forecast.backtest_metrics.regime ? (
