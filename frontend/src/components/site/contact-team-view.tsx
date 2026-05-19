@@ -24,13 +24,15 @@ const TEAM: TeamMember[] = [
   {
     id: "mehmet",
     name: "Mehmet Emin Küçükkurt",
-    role: "Kurucu Ortak & Yazılım Geliştirici",
+    role: "Kurucu Ortak & Baş Geliştirici",
     email: "kucukkurtmm@gmail.com",
+    linkedinUrl: "https://www.linkedin.com/in/mehmeteminkucukkurt",
     responsibilities: [
-      "Platform mimarisi ve API altyapısı",
-      "Analiz merkezi arayüzü ve dağıtım",
-      "Teknik destek ve hata giderme",
+      "Prophet ve LSTM Hibrit Model Mimarisi",
+      "Sistem Tasarımı ve Uçtan Uca Entegrasyon",
+      "Full-stack Geliştirme ve Deployment",
     ],
+    university: "İstanbul Beykent Üniversitesi - Yazılım Mühendisliği",
   },
   {
     id: "ahmet",
@@ -40,29 +42,29 @@ const TEAM: TeamMember[] = [
     linkedinUrl: "https://www.linkedin.com/in/ahmet-bayram-topcu-4b0501333/",
     photoSrc: "/team/ahmet.png",
     responsibilities: [
-      "Prophet / LSTM tahmin pipeline",
-      "Geriye dönük test ve metrikler",
-      "Veri kalitesi ve model iyileştirme",
+      "Model İyileştirmeleri ve Hiperparametre Optimizasyonu",
+      "Veri Analitiği ve Pipeline Yönetimi",
+      "Geriye Dönük Test Senaryoları",
     ],
+    university: "İstanbul Ticaret Üniversitesi - Elektrik Elektronik Mühendisliği",
   },
   {
     id: "ataman",
     name: "Ataman Gazozcu",
-    role: "Finansal Analist",
+    role: "Arayüz Tasarımcısı",
     email: "atamangazozcu@gmail.com",
+    linkedinUrl: "https://tr.linkedin.com/in/ataman-gazozcu",
     responsibilities: [
-      "Piyasa içeriği ve metodoloji metinleri",
-      "Varlık sınıfları ve kullanıcı rehberleri",
-      "İş birliği ve analitik geri bildirim",
+      "Kullanıcı Deneyimi ve Arayüz Tasarımı",
+      "Görsel Bileşenlerin Düzenlenmesi",
+      "Piyasa Metodolojisi Metinleri",
     ],
+    university: "Haliç Üniversitesi - Bilgisayar Mühendisliği",
   },
 ];
 
-const FOOTER_INTRO =
-  "FinanceScout ile ilgili sorularınız, teknik destek talepleriniz veya iş birliği önerileriniz için bizimle iletişime geçin.";
-
-const FOOTER_NOTE =
-  "* Gönderilen tüm e-postalar 24-48 saat içerisinde değerlendirilmeye alınmaktadır.";
+const FOOTER_INTRO = "";
+const FOOTER_NOTE = "";
 
 function initials(name: string) {
   return name
@@ -73,6 +75,17 @@ function initials(name: string) {
     .slice(0, 2)
     .toUpperCase();
 }
+
+export type TeamMember = {
+  id: string;
+  name: string;
+  role: string;
+  email: string;
+  linkedinUrl?: string;
+  photoSrc?: string;
+  responsibilities: string[];
+  university?: string;
+};
 
 function MemberPhoto({ member }: { member: TeamMember }) {
   if (member.photoSrc) {
@@ -120,7 +133,7 @@ function MemberLinkedIn({ member }: { member: TeamMember }) {
   }
 
   return (
-    <p className="mt-2 text-[11px] font-normal text-white/35">link ekleyin</p>
+    <p className="mt-2 text-[11px] font-normal text-white/35">Bağlantı bulunmuyor</p>
   );
 }
 
@@ -135,6 +148,12 @@ function TeamColumn({ member }: { member: TeamMember }) {
         </h2>
         <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-200/90">{member.role}</p>
 
+        {member.university && (
+          <p className="mt-4 text-[13px] font-medium text-white/60 leading-tight">
+            {member.university}
+          </p>
+        )}
+
         <Link
           href={`mailto:${member.email}`}
           className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-white/80 transition-colors hover:text-sky-300"
@@ -146,7 +165,7 @@ function TeamColumn({ member }: { member: TeamMember }) {
         <MemberLinkedIn member={member} />
 
         <div className="mt-6 flex-1">
-          <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/45">Yaptığı işler</h3>
+          <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/45">Projedeki Görevleri</h3>
           <ul className="mt-3 space-y-2.5 text-sm leading-relaxed text-white/70">
             {member.responsibilities.map((item) => (
               <li key={item} className="flex gap-2.5">
@@ -165,10 +184,7 @@ export function ContactTeamView() {
   return (
     <div className="overflow-hidden pb-24 text-white">
       <header className={cn("mx-auto max-w-6xl pb-8 pt-8 md:pb-12 md:pt-10", CONTACT_INSET)}>
-        <p className="text-[13px] font-bold uppercase tracking-[0.2em] text-sky-100/90">Ekibimiz</p>
-        <h1 className="font-heading mt-3 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-4xl md:text-5xl">
-          İletişim
-        </h1>
+        <p className="text-[13px] font-bold uppercase tracking-[0.2em] text-sky-100/90 text-center md:text-left">Ekibimiz</p>
       </header>
 
       <div
@@ -181,34 +197,6 @@ export function ContactTeamView() {
           <TeamColumn key={member.id} member={member} />
         ))}
       </div>
-
-      <section className={cn("mx-auto mt-8 max-w-6xl md:mt-10", CONTACT_INSET)}>
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 md:px-6">
-          <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-white/50">Kaynak kod</p>
-          <Link
-            href={GITHUB_REPO_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-white/85 transition-colors hover:text-sky-300"
-          >
-            GitHub — {GITHUB_REPO_URL.replace("https://github.com/", "")}
-          </Link>
-        </div>
-      </section>
-
-      <footer
-        className={cn(
-          "mx-auto mt-12 flex max-w-6xl flex-col gap-4 border-t border-white/10 pt-8 md:mt-14",
-          CONTACT_INSET,
-        )}
-      >
-        <p className="max-w-2xl text-base font-medium leading-relaxed text-white/75 md:text-lg md:leading-8">
-          {FOOTER_INTRO}
-        </p>
-        <p className="max-w-2xl text-base font-medium leading-relaxed text-white/75 md:text-lg md:leading-8">
-          {FOOTER_NOTE}
-        </p>
-      </footer>
     </div>
   );
 }
