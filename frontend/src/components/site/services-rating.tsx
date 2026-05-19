@@ -1,7 +1,7 @@
 "use client";
 
 import { Star } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { postFeedback } from "@/lib/api";
 import { readJson, removeKey, STORAGE_KEYS, writeJson } from "@/lib/storage";
@@ -34,15 +34,17 @@ function computeAverage(counts: RatingCounts): { average: number | null; total: 
 }
 
 export function ServicesRating() {
-  const [counts, setCounts] = useState<RatingCounts>(() =>
-    readJson(STORAGE_KEYS.servicesRatingCounts, emptyCounts()),
-  );
-  const [myRating, setMyRating] = useState<number | null>(() =>
-    readJson<number | null>(STORAGE_KEYS.servicesUserRating, null),
-  );
+  const [counts, setCounts] = useState<RatingCounts>(emptyCounts);
+  const [myRating, setMyRating] = useState<number | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Load from storage after mount
+  useEffect(() => {
+    setCounts(readJson(STORAGE_KEYS.servicesRatingCounts, emptyCounts()));
+    setMyRating(readJson<number | null>(STORAGE_KEYS.servicesUserRating, null));
+  }, []);
 
   const { average, total } = useMemo(() => computeAverage(counts), [counts]);
   const displayStars = hovered ?? myRating ?? 0;
