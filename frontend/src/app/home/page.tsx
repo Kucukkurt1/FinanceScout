@@ -1,96 +1,258 @@
 import Link from "next/link";
-import { ArrowRight, BadgeCheck, Landmark, LineChart, Lock, ShieldCheck, Sparkles, MousePointer2, BarChart3, Binary } from "lucide-react";
+import {
+  ArrowRight,
+  BadgeCheck,
+  Landmark,
+  Cpu,
+  TrendingUp,
+  History,
+  Search,
+  Globe,
+  ShieldAlert,
+  Brain,
+  Coins,
+} from "lucide-react";
 
+import { HomeAssistantQuickActions } from "@/components/site/home-assistant-quick-actions";
 import { SITE_NAV_CLEARANCE } from "@/components/site/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MarketSummary } from "@/components/site/market-summary";
 
-/** Uygulama Ana Sayfası (/home) */
+/** Uygulama Bilgilendirme Ana Sayfası (/home) */
 export default function ApplicationHomePage() {
   return (
-    <div className="overflow-hidden pb-24 text-white">
+    <div className="overflow-hidden pb-32 text-white">
       {/* Hero Section */}
-      <section className={cn("relative mx-auto max-w-7xl pt-10 md:pt-14", SITE_NAV_CLEARANCE)}>
-        <div className="pointer-events-none absolute inset-x-5 top-3 hidden h-px bg-white/18 lg:block" />
-        <div className="pointer-events-none absolute bottom-0 right-8 top-0 hidden w-px bg-white/14 xl:block" />
-
-        <div className="grid min-h-[520px] items-center gap-12 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.72fr)] xl:gap-16">
-          <div className="relative border-l-[4px] border-white/45 pl-6 md:pl-9">
-            <p className="text-[13px] font-bold uppercase tracking-[0.2em] text-sky-100 drop-shadow-sm flex items-center gap-2">
-              <Sparkles className="size-4" />
-              Uygulama Paneli
-            </p>
-            <h1 className="font-heading mt-5 max-w-[760px] text-5xl font-semibold leading-[1.02] tracking-[-0.035em] text-white drop-shadow-[0_3px_18px_rgba(0,0,0,0.35)] md:text-6xl lg:text-[4.75rem]">
-              Finansal özetler ve canlı veriler
-            </h1>
-            <p className="mt-7 max-w-2xl text-lg font-medium leading-8 text-white/90 drop-shadow-sm md:text-xl">
-              Piyasa trendlerini takip edin, popüler varlıkları inceleyin ve derinlemesine AI analizi için merkezimizi kullanın.
-            </p>
-            <div className="mt-10 flex flex-wrap items-center gap-3">
-              <Link
-                href="/analiz"
-                className={cn(buttonVariants({ variant: "brand", size: "lg" }), "h-12 px-7")}
-              >
-                Hemen Analiz Yap
-                <ArrowRight className="size-4" aria-hidden />
-              </Link>
-            </div>
+      <section className={cn("relative mx-auto max-w-7xl pt-10 md:pt-16", SITE_NAV_CLEARANCE)}>
+        <div className="flex flex-col items-center text-center px-6">
+          <div className="inline-flex items-center rounded-full bg-white/5 border border-white/10 px-4 py-1.5 mb-8">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-sky-200">Bilgi Merkezi</span>
           </div>
 
-          <aside className="relative border-y border-white/22 py-8 lg:border-l lg:border-y-0 lg:py-12 lg:pl-10">
-            <div className="absolute -right-20 top-1/2 hidden h-72 w-72 -translate-y-1/2 rounded-full bg-white/10 blur-3xl lg:block" />
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/68">Hızlı Erişim</p>
-            <div className="relative mt-8 space-y-8">
-              {[
-                {
-                  icon: BarChart3,
-                  t: "Varlık Analizi",
-                  d: "Kripto, Döviz ve Hisse senedi tahminleri.",
-                  href: "/analiz"
-                },
-                {
-                  icon: Binary,
-                  t: "Backtest",
-                  d: "Modelin geçmiş performansını test edin.",
-                  href: "/analiz"
-                },
-                {
-                  icon: ShieldCheck,
-                  t: "Hizmetler",
-                  d: "Platform özelliklerini keşfedin.",
-                  href: "/hizmetler"
-                },
-              ].map(({ icon: Icon, t, d, href }) => (
-                <Link key={t} href={href} className="group grid grid-cols-[48px_1fr] gap-5">
-                  <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-white/18 bg-white/10 text-white shadow-lg shadow-black/10 transition-colors group-hover:bg-white/16">
-                    <Icon className="size-5" aria-hidden />
-                  </span>
-                  <div className="border-b border-white/14 pb-8 group-last:border-b-0 group-last:pb-0">
-                    <p className="text-lg font-bold text-white group-hover:text-sky-300 transition-colors">{t}</p>
-                    <p className="mt-2 max-w-sm text-[15px] leading-7 text-white/78">{d}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </aside>
+          <h1 className="font-heading max-w-4xl text-5xl font-bold leading-[1.1] tracking-tight md:text-7xl">
+            Veri Temelli <span className="text-sky-400">Finansal</span> Öngörü Dünyasına Hoş Geldiniz
+          </h1>
+
+          <p className="mt-8 max-w-2xl text-lg text-white/60 leading-relaxed md:text-xl font-medium">
+            FinanceScout, karmaşık piyasa verilerini anlamlı içgörülere dönüştüren gelişmiş bir analiz platformudur.
+            Burada kararlarınızı sezgilere değil, bilimsel modellere dayandırırsınız.
+          </p>
+
+          <div className="mt-12 flex justify-center">
+            <Link
+              href="/analiz"
+              className={cn(buttonVariants({ variant: "brand", size: "lg" }), "h-14 px-10 text-lg shadow-xl shadow-primary/20")}
+            >
+              Analiz Aracını Başlat
+              <ArrowRight className="ml-2 size-5" />
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* Market Summary Section */}
-      <section className={cn("mx-auto mt-20 max-w-7xl", SITE_NAV_CLEARANCE)}>
-        <div className="mb-8 flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-100">Canlı Piyasalar</p>
-            <h2 className="font-heading mt-3 text-3xl font-semibold tracking-[-0.02em] text-white md:text-4xl">
-              Piyasa Özeti
+      <section className="mx-auto mt-32 max-w-7xl px-6 relative">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-[600px] bg-sky-500/5 blur-[120px] rounded-full pointer-events-none" />
+
+        <div className="relative z-10">
+          <div className="mb-12 flex flex-col items-center text-center">
+            <div className="inline-flex items-center rounded-full bg-sky-500/10 border border-sky-400/20 px-4 py-1.5 mb-6">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-300">Canlı Veri Akışı</span>
+            </div>
+            <h2 className="font-heading text-4xl font-bold tracking-tight md:text-6xl text-white mb-8">
+              Anlık Piyasa <span className="text-sky-400 italic">Nabzı</span>
             </h2>
+            <p className="max-w-2xl text-white/50 font-medium text-lg leading-relaxed">
+              Küresel piyasalardan saniyeler içinde güncellenen canlı veriler. En popüler varlıkların performansını tek
+              bir profesyonel ekranda izleyin.
+            </p>
           </div>
-          <p className="max-w-md text-sm font-medium text-white/60">
-            Anlık Yahoo Finance verileriyle piyasanın nabzını tutun.
+
+          <div className="grid lg:grid-cols-[1fr_280px] gap-8 items-start">
+            <div className="rounded-[40px] border border-white/10 bg-white/[0.03] p-4 md:p-8 backdrop-blur-md shadow-2xl shadow-black/20">
+              <MarketSummary readonly />
+            </div>
+            <HomeAssistantQuickActions />
+          </div>
+        </div>
+      </section>
+
+      {/* Technology Explanation */}
+      <section className="mx-auto mt-40 max-w-7xl px-6">
+        <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div className="space-y-8 text-left">
+            <h2 className="font-heading text-4xl font-bold leading-tight">
+              Hibrit AI Teknolojimiz <br />
+              <span className="text-sky-400 text-3xl opacity-80">Nasıl Karar Verir?</span>
+            </h2>
+            <p className="text-white/60 leading-relaxed font-medium text-lg">
+              Analiz merkezimiz, piyasanın hem geçmiş hafızasını hem de gelecekteki trend yönünü aynı anda işlemek için
+              iki güçlü mimariyi harmanlar.
+            </p>
+
+            <div className="space-y-6 mt-10">
+              <div className="flex gap-6 p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors group">
+                <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-sky-400/10 border border-sky-400/20">
+                  <TrendingUp className="size-6 text-sky-400" />
+                </div>
+                <div>
+                  <h4 className="text-xl font-bold group-hover:text-sky-400 transition-colors">Prophet: Trend Analisti</h4>
+                  <p className="mt-2 text-white/50 leading-relaxed font-medium text-[15px]">
+                    Meta tarafından geliştirilen Prophet, yıllık döngüleri ve tatil günleri gibi özel etkileri matematiksel
+                    olarak çözer.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-6 p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors group">
+                <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-sky-400/10 border border-sky-400/20">
+                  <Cpu className="size-6 text-sky-400" />
+                </div>
+                <div>
+                  <h4 className="text-xl font-bold group-hover:text-sky-400 transition-colors">LSTM: Hafıza Katmanı</h4>
+                  <p className="mt-2 text-white/50 leading-relaxed font-medium text-[15px]">
+                    Derin öğrenme tabanlı LSTM (Uzun-Kısa Süreli Bellek) ağları, piyasadaki ani hareketleri ve kısa vadeli
+                    desenleri hatırlar.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative aspect-square max-w-md mx-auto w-full lg:ml-auto">
+            <div className="absolute inset-0 bg-sky-500/20 rounded-[60px] blur-[100px] animate-pulse" />
+            <div className="relative h-full w-full bg-white/5 border border-white/10 rounded-[60px] flex items-center justify-center p-12 overflow-hidden shadow-2xl shadow-sky-500/10 backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-6">
+                <div className="size-24 rounded-[32px] bg-sky-500 text-white flex items-center justify-center shadow-[0_0_50px_rgba(14,165,233,0.3)]">
+                  <Brain className="size-12" />
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-white tracking-tight">AI Entegrasyonu</p>
+                  <p className="text-sky-400 font-bold uppercase tracking-[0.2em] text-xs mt-2">Aktif Analiz</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Asset Coverage */}
+      <section className="mx-auto mt-40 max-w-7xl px-6">
+        <div className="text-center mb-16">
+          <h2 className="font-heading text-4xl font-bold">Neleri Analiz Edebilirsiniz?</h2>
+          <p className="mt-4 text-white/50 font-medium max-w-2xl mx-auto">
+            Geniş veri ağımız sayesinde binlerce farklı finansal varlığı tek bir platform üzerinden inceleyebilirsiniz.
           </p>
         </div>
-        <MarketSummary />
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[
+            { icon: Search, t: "Hisse Senetleri", d: "Borsa İstanbul ve ABD borsalarındaki binlerce şirket.", c: "sky" },
+            { icon: Landmark, t: "Döviz Kurları", d: "Majör pariteler ve Türk Lirası odaklı kur değişimleri.", c: "emerald" },
+            { icon: Coins, t: "Kripto Paralar", d: "Bitcoin, Ethereum ve önde gelen altcoin projeleri.", c: "amber" },
+            { icon: Globe, t: "Emtia & Endeksler", d: "Altın, Gümüş, Petrol ve küresel borsa endeksleri.", c: "rose" },
+          ].map((item) => (
+            <div
+              key={item.t}
+              className="p-8 rounded-[32px] bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-all group"
+            >
+              <item.icon
+                className={cn("size-10 mb-6 transition-transform group-hover:scale-110", {
+                  "text-sky-400": item.c === "sky",
+                  "text-emerald-400": item.c === "emerald",
+                  "text-amber-400": item.c === "amber",
+                  "text-white": item.c === "rose",
+                })}
+              />
+              <h4 className="text-xl font-bold mb-3">{item.t}</h4>
+              <p className="text-white/40 text-sm leading-relaxed font-medium">{item.d}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Transparency & Trust */}
+      <section className="mx-auto mt-40 max-w-7xl px-6">
+        <div className="rounded-[48px] bg-white/[0.03] border border-white/10 p-10 md:p-20 overflow-hidden relative shadow-2xl shadow-black/20 backdrop-blur-sm">
+          <div className="absolute top-0 right-0 size-96 bg-sky-500/10 blur-[120px] rounded-full -mr-48 -mt-48" />
+
+          <div className="relative z-10 grid lg:grid-cols-[1fr_0.8fr] gap-20">
+            <div>
+              <h2 className="font-heading text-4xl font-bold leading-tight mb-8 text-white">
+                Şeffaflık Bizim <span className="text-sky-400 italic">Anayasamız</span>
+              </h2>
+              <p className="text-white/60 text-lg leading-relaxed font-medium mb-12">
+                Finansal modeller genellikle birer &quot;kara kutu&quot;dur. FinanceScout olarak biz, modelin nasıl performans
+                gösterdiğini size dürüstçe sunarız.
+              </p>
+
+              <div className="grid sm:grid-cols-2 gap-8 text-left">
+                <div>
+                  <History className="size-8 text-sky-400 mb-4" />
+                  <h5 className="font-bold text-lg mb-2 text-white">Backtest Gücü</h5>
+                  <p className="text-sm text-white/40 leading-relaxed">
+                    Verinin son %20&apos;sini yapay zekadan saklar ve ne kadar isabetli tahmin yaptığını test ederiz.
+                  </p>
+                </div>
+                <div>
+                  <ShieldAlert className="size-8 text-amber-500 mb-4" />
+                  <h5 className="font-bold text-lg mb-2 text-white">Hata Payı Metrikleri</h5>
+                  <p className="text-sm text-white/40 leading-relaxed">
+                    RMSE ve MAE gibi akademik doğruluk metriklerini sade bir dille raporlarız.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-center gap-6">
+              <div className="p-8 rounded-3xl bg-white/5 border border-white/10 shadow-inner">
+                <div className="flex items-center gap-3 mb-4">
+                  <BadgeCheck className="size-6 text-emerald-400" />
+                  <span className="font-bold uppercase tracking-wider text-xs text-white/30">Doğrulama Raporu</span>
+                </div>
+                <div className="space-y-4">
+                  <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full w-[94%] bg-emerald-500 shadow-[0_0_10px_#10b981]" />
+                  </div>
+                  <div className="flex justify-between text-xs font-bold text-white/40">
+                    <span>MODEL GÜVENİLİRLİĞİ</span>
+                    <span className="text-emerald-400">%94.2</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-white/20 italic text-center">
+                *Analizler geçmiş verilere dayanır ve asla yatırım tavsiyesi değildir.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="mx-auto mt-40 max-w-3xl px-6 text-center pb-8">
+        <h2 className="font-heading text-3xl font-bold mb-8">Sıkça Sorulan Sorular</h2>
+        <div className="space-y-4 text-left">
+          {[
+            {
+              q: "Tahminler ne kadar güvenilir?",
+              a: "AI modellerimiz piyasanın geçmiş döngülerini analiz eder. Ancak finansal piyasalar haber akışı ve beklenmedik olaylardan etkilendiği için bu tahminler birer 'olasılık' sunar, kesinlik vaat etmez.",
+            },
+            {
+              q: "Veriler ne sıklıkla güncelleniyor?",
+              a: "Piyasa verileri anlık olarak Yahoo Finance üzerinden çekilir. Analizler ise her talep edildiğinde güncel verilerle o saniyede yeniden hesaplanır.",
+            },
+            {
+              q: "Platform ücretli mi?",
+              a: "FinanceScout'un temel analiz ve bilgilendirme özellikleri tüm kullanıcılara ücretsiz olarak sunulmaktadır.",
+            },
+          ].map((faq, i) => (
+            <div key={i} className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
+              <h4 className="font-bold text-sky-200 mb-2">? {faq.q}</h4>
+              <p className="text-sm text-white/50 leading-relaxed font-medium">{faq.a}</p>
+            </div>
+          ))}
+        </div>
       </section>
     </div>
   );
