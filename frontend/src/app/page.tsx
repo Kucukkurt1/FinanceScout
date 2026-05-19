@@ -232,8 +232,7 @@ export default function LandingPage() {
                       <div className="relative h-48 w-full rounded-3xl bg-white/40 border border-slate-200/60 shadow-inner flex items-center justify-center p-6 overflow-hidden">
                          <div className="absolute left-6 top-6">
                             <p className="text-[10px] font-bold text-slate-500 uppercase">Trend Analizi</p>
-                            <p className="text-xl font-bold text-white">35.42 ₺</p>
-                         </div>
+                            <p className="text-xl font-bold text-sky-600">35.42 ₺</p>                         </div>
                          <svg className="h-32 w-full mt-4" viewBox="0 0 400 100">
                             {/* Grid Dots */}
                             <pattern id="grid" width="40" height="20" patternUnits="userSpaceOnUse">

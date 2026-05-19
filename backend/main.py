@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 import uuid
 from datetime import date, datetime, timezone
 from typing import Any
@@ -9,6 +10,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
+from api_prefix import StripApiPrefixesMiddleware
 from instrumentation import init_sentry
 
 init_sentry()
@@ -45,20 +47,31 @@ from schemas import (
 )
 from symbol_search import search_symbols
 
+def _cors_origins() -> list[str]:
+    origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://[::1]:3000",
+    ]
+    for key in ("VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL"):
+        host = os.environ.get(key, "").strip()
+        if host:
+            origins.append(f"https://{host}")
+    return origins
+
+
 app = FastAPI(title="FinanceScout API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://[::1]:3000",
-    ],
+    allow_origins=_cors_origins(),
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 app.add_middleware(RequestLogMiddleware)
+app.add_middleware(StripApiPrefixesMiddleware)
 
 _FEEDBACK_STORE: list[dict[str, Any]] = []
 
@@ -403,3 +416,12 @@ def backtest(body: BacktestRequest) -> BacktestResponse:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Upstream or model error: {e!s}") from e
+
+
+# Vercel @vercel/python serverless giriş noktası (yerelde uvicorn kullanılır)
+try:
+    from mangum import Mangum
+
+    handler = Mangum(app, lifespan="off")
+except ImportError:
+    handler = None  # type: ignore[misc, assignment]

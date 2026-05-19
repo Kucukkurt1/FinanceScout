@@ -1,13 +1,29 @@
 {
-    "experimentalServices": {
-        "frontend": {
-            "entrypoint": "frontend",
-            "routePrefix": "/",
-            "framework": "nextjs"
-        },
-        "backend": {
-            "entrypoint": "backend",
-            "routePrefix": "/_/backend"
-        }
+  "version": 2,
+  "builds": [
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/next"
+    },
+    {
+      "src": "backend/main.py",
+      "use": "@vercel/python"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/_backend/(.*)",
+      "destination": "backend/main.py"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "backend/main.py"
+    }
+  ],
+  "functions": {
+    "backend/main.py": {
+      "maxDuration": 60,
+      "memory": 3008
+    }
+  }
 }
