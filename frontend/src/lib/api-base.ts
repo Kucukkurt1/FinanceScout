@@ -1,19 +1,17 @@
 /**
  * Backend API kök adresi.
- * - Yerel tarayıcı: /api → next.config rewrites → localhost:8000
- * - Vercel (canlı): /_backend → vercel.json rewrites → @vercel/python
- * - Sunucu (SSR / Route Handler): VERCEL_URL ile tam URL veya yerelde 127.0.0.1:8000
+ * - Yerel: doğrudan uvicorn (8000) veya NEXT_PUBLIC_API_URL
+ * - Vercel Services: /_backend (routePrefix) veya API_URL / NEXT_PUBLIC_API_URL
  */
 
 const LOCAL_BACKEND = "http://127.0.0.1:8000";
-const LOCAL_BROWSER_PROXY = "/api";
 const VERCEL_BACKEND_PATH = "/_backend";
 
 function isLocalHostname(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
-/** Sunucu tarafında göreli yolu (örn. /_backend) mutlak URL'ye çevirir */
+/** Sunucu tarafında göreli yolu mutlak URL'ye çevirir */
 function resolveServerRelativeBase(relativePath: string): string {
   const path = relativePath.startsWith("/") ? relativePath : `/${relativePath}`;
   const vercelHost = process.env.VERCEL_URL?.trim();
@@ -41,11 +39,15 @@ export function getApiBase(): string {
   if (fromEnv) return normalizeEnvApiUrl(fromEnv);
 
   if (typeof window !== "undefined") {
-    return isLocalHostname(window.location.hostname) ? LOCAL_BROWSER_PROXY : VERCEL_BACKEND_PATH;
+    return isLocalHostname(window.location.hostname) ? LOCAL_BACKEND : VERCEL_BACKEND_PATH;
   }
 
-  if (process.env.VERCEL === "1" && process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}${VERCEL_BACKEND_PATH}`;
+  if (process.env.VERCEL === "1") {
+    const serverApi = process.env.API_URL?.trim();
+    if (serverApi) return normalizeEnvApiUrl(serverApi);
+    if (process.env.VERCEL_URL) {
+      return `https://${process.env.VERCEL_URL}${VERCEL_BACKEND_PATH}`;
+    }
   }
 
   return LOCAL_BACKEND;

@@ -12,15 +12,5 @@
       "maxDuration": 60,
       "memory": 3008
     }
-  },
-  "rewrites": [
-    {
-      "source": "/_backend/(.*)",
-      "destination": "backend/main.py"
-    },
-    {
-      "source": "/api/(.*)",
-      "destination": "backend/main.py"
-    }
-  ]
+  }
 }

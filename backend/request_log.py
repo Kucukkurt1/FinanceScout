@@ -7,9 +7,8 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Any
 
-from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi import FastAPI
 from starlette.requests import Request
-from starlette.responses import Response
 
 _LOG: deque[dict[str, Any]] = deque(maxlen=200)
 _QUOTA: dict[str, int] = {}
@@ -31,8 +30,11 @@ def increment_quota(symbol: str) -> None:
     _QUOTA[sym] = _QUOTA.get(sym, 0) + 1
 
 
-class RequestLogMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next) -> Response:
+def register_request_logging(app: FastAPI) -> None:
+    """BaseHTTPMiddleware serverless'te askıda kalabiliyor; http middleware kullanılır."""
+
+    @app.middleware("http")
+    async def _request_log(request: Request, call_next):
         trace_id = request.headers.get("X-Trace-Id") or str(uuid.uuid4())
         started = time.perf_counter()
         response = await call_next(request)

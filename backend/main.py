@@ -7,10 +7,9 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import APIRouter, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from api_prefix import StripApiPrefixesMiddleware
 from instrumentation import init_sentry
 
 init_sentry()
@@ -22,7 +21,7 @@ from events_impact import analyze_event_impact
 from model_profiles import get_profile, resolve_asset_class
 from prophet_service import backtest_split, cutoff_train_forecast, fit_and_forecast
 from quality_service import analyze_quality
-from request_log import RequestLogMiddleware, increment_quota
+from request_log import increment_quota, register_request_logging
 from schemas import (
     BacktestRequest,
     BacktestResponse,
@@ -61,6 +60,7 @@ def _cors_origins() -> list[str]:
 
 
 app = FastAPI(title="FinanceScout API", version="0.2.0")
+api = APIRouter()
 
 app.add_middleware(
     CORSMiddleware,
@@ -69,9 +69,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Trace-Id"],
 )
-app.add_middleware(RequestLogMiddleware)
-app.add_middleware(StripApiPrefixesMiddleware)
+register_request_logging(app)
 
 _FEEDBACK_STORE: list[dict[str, Any]] = []
 
@@ -147,12 +147,12 @@ def _row_to_point_forecast(row: pd.Series) -> SeriesPoint:
     )
 
 
-@app.get("/health", response_model=HealthResponse)
+@api.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
-@app.get("/market-summary", response_model=MarketSummaryResponse)
+@api.get("/market-summary", response_model=MarketSummaryResponse)
 def market_summary() -> MarketSummaryResponse:
     symbols = [
         "BTC-USD",
@@ -190,13 +190,13 @@ def market_summary() -> MarketSummaryResponse:
     return MarketSummaryResponse(items=[MarketItem(**item) for item in items])
 
 
-@app.get("/symbols/search", response_model=SymbolSearchResponse)
+@api.get("/symbols/search", response_model=SymbolSearchResponse)
 def symbols_search(q: str = Query("", min_length=0, max_length=64)) -> SymbolSearchResponse:
     results = search_symbols(q, limit=25)
     return SymbolSearchResponse(symbols=[r.symbol for r in results], results=results)
 
 
-@app.get("/events", response_model=EventsListResponse)
+@api.get("/events", response_model=EventsListResponse)
 def events(
     from_date: date | None = Query(None, alias="from"),
     to_date: date | None = Query(None, alias="to"),
@@ -215,7 +215,7 @@ def events(
     )
 
 
-@app.post("/events/impact", response_model=EventImpactResponse)
+@api.post("/events/impact", response_model=EventImpactResponse)
 def event_impact(body: EventImpactRequest) -> EventImpactResponse:
     try:
         ed = date.fromisoformat(body.event_date.strip())
@@ -233,7 +233,7 @@ def event_impact(body: EventImpactRequest) -> EventImpactResponse:
         raise HTTPException(status_code=502, detail=f"Event impact error: {e!s}") from e
 
 
-@app.post("/compare", response_model=CompareResponse)
+@api.post("/compare", response_model=CompareResponse)
 def compare(body: CompareRequest) -> CompareResponse:
     try:
         result = compare_symbols(body.symbols, body.history_days)
@@ -248,7 +248,7 @@ def compare(body: CompareRequest) -> CompareResponse:
         raise HTTPException(status_code=502, detail=f"Compare error: {e!s}") from e
 
 
-@app.get("/quality", response_model=QualityResponse)
+@api.get("/quality", response_model=QualityResponse)
 def quality(
     symbol: str = Query(..., min_length=1),
     history_days: int = Query(365, ge=30, le=3650),
@@ -262,7 +262,7 @@ def quality(
         raise HTTPException(status_code=502, detail=f"Quality error: {e!s}") from e
 
 
-@app.post("/feedback", response_model=FeedbackResponse)
+@api.post("/feedback", response_model=FeedbackResponse)
 def feedback(body: FeedbackRequest) -> FeedbackResponse:
     entry_id = str(uuid.uuid4())
     received = datetime.now(timezone.utc).isoformat()
@@ -279,7 +279,7 @@ def feedback(body: FeedbackRequest) -> FeedbackResponse:
     return FeedbackResponse(id=entry_id, received_at=received)
 
 
-@app.post("/forecast", response_model=ForecastResponse)
+@api.post("/forecast", response_model=ForecastResponse)
 def forecast(body: ForecastRequest) -> ForecastResponse:
     try:
         symbol = body.symbol.strip().upper()
@@ -349,7 +349,7 @@ def forecast(body: ForecastRequest) -> ForecastResponse:
         raise HTTPException(status_code=502, detail=f"Upstream or model error: {e!s}") from e
 
 
-@app.post("/backtest", response_model=BacktestResponse)
+@api.post("/backtest", response_model=BacktestResponse)
 def backtest(body: BacktestRequest) -> BacktestResponse:
     try:
         symbol = body.symbol.strip().upper()
@@ -417,6 +417,10 @@ def backtest(body: BacktestRequest) -> BacktestResponse:
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Upstream or model error: {e!s}") from e
 
+
+# Kök rotalar (doğrudan uvicorn) + Vercel Services proxy öneki /_backend
+app.include_router(api)
+app.include_router(api, prefix="/_backend")
 
 # Vercel @vercel/python serverless giriş noktası (yerelde uvicorn kullanılır)
 try:
