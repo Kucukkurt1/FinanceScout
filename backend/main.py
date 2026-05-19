@@ -139,7 +139,38 @@ def health() -> HealthResponse:
 
 @app.get("/market-summary", response_model=MarketSummaryResponse)
 def market_summary() -> MarketSummaryResponse:
-    symbols = ["BTC-USD", "USDTRY=X", "GC=F", "^GSPC", "THYAO.IS"]
+    symbols = [
+        "BTC-USD",
+        "ETH-USD",
+        "USDTRY=X",
+        "EURTRY=X",
+        "GBPTRY=X",
+        "GC=F",
+        "SI=F",
+        "BZ=F",
+        "^GSPC",
+        "^IXIC",
+        "^DJI",
+        "^XU100",
+        "THYAO.IS",
+        "ASELS.IS",
+        "SISE.IS",
+        "KCHOL.IS",
+        "AAPL",
+        "MSFT",
+        "NVDA",
+        "TSLA",
+        "META",
+        "GOOGL",
+        "AMZN",
+        "EURUSD=X",
+        "JPYTRY=X",
+        "GARAN.IS",
+        "AKBNK.IS",
+        "EREGL.IS",
+        "TUPRS.IS",
+        "BIMAS.IS",
+    ]
     items = fetch_market_summary(symbols)
     return MarketSummaryResponse(items=[MarketItem(**item) for item in items])
 

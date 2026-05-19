@@ -1,6 +1,4 @@
-import Link from "next/link";
 import {
-  ArrowRight,
   BadgeCheck,
   Landmark,
   Cpu,
@@ -13,70 +11,14 @@ import {
   Coins,
 } from "lucide-react";
 
-import { HomeAssistantQuickActions } from "@/components/site/home-assistant-quick-actions";
-import { SITE_NAV_CLEARANCE } from "@/components/site/page-header";
-import { buttonVariants } from "@/components/ui/button";
+import { HomeHeroDashboard } from "@/components/site/home-hero-dashboard";
 import { cn } from "@/lib/utils";
-import { MarketSummary } from "@/components/site/market-summary";
 
 /** Uygulama Bilgilendirme Ana Sayfası (/home) */
 export default function ApplicationHomePage() {
   return (
     <div className="overflow-hidden pb-32 text-white">
-      {/* Hero Section */}
-      <section className={cn("relative mx-auto max-w-7xl pt-10 md:pt-16", SITE_NAV_CLEARANCE)}>
-        <div className="flex flex-col items-center text-center px-6">
-          <div className="inline-flex items-center rounded-full bg-white/5 border border-white/10 px-4 py-1.5 mb-8">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-sky-200">Bilgi Merkezi</span>
-          </div>
-
-          <h1 className="font-heading max-w-4xl text-5xl font-bold leading-[1.1] tracking-tight md:text-7xl">
-            Veri Temelli <span className="text-sky-400">Finansal</span> Öngörü Dünyasına Hoş Geldiniz
-          </h1>
-
-          <p className="mt-8 max-w-2xl text-lg text-white/60 leading-relaxed md:text-xl font-medium">
-            FinanceScout, karmaşık piyasa verilerini anlamlı içgörülere dönüştüren gelişmiş bir analiz platformudur.
-            Burada kararlarınızı sezgilere değil, bilimsel modellere dayandırırsınız.
-          </p>
-
-          <div className="mt-12 flex justify-center">
-            <Link
-              href="/analiz"
-              className={cn(buttonVariants({ variant: "brand", size: "lg" }), "h-14 px-10 text-lg shadow-xl shadow-primary/20")}
-            >
-              Analiz Aracını Başlat
-              <ArrowRight className="ml-2 size-5" />
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Market Summary Section */}
-      <section className="mx-auto mt-32 max-w-7xl px-6 relative">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-[600px] bg-sky-500/5 blur-[120px] rounded-full pointer-events-none" />
-
-        <div className="relative z-10">
-          <div className="mb-12 flex flex-col items-center text-center">
-            <div className="inline-flex items-center rounded-full bg-sky-500/10 border border-sky-400/20 px-4 py-1.5 mb-6">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-300">Canlı Veri Akışı</span>
-            </div>
-            <h2 className="font-heading text-4xl font-bold tracking-tight md:text-6xl text-white mb-8">
-              Anlık Piyasa <span className="text-sky-400 italic">Nabzı</span>
-            </h2>
-            <p className="max-w-2xl text-white/50 font-medium text-lg leading-relaxed">
-              Küresel piyasalardan saniyeler içinde güncellenen canlı veriler. En popüler varlıkların performansını tek
-              bir profesyonel ekranda izleyin.
-            </p>
-          </div>
-
-          <div className="grid lg:grid-cols-[1fr_280px] gap-8 items-start">
-            <div className="rounded-[40px] border border-white/10 bg-white/[0.03] p-4 md:p-8 backdrop-blur-md shadow-2xl shadow-black/20">
-              <MarketSummary readonly />
-            </div>
-            <HomeAssistantQuickActions />
-          </div>
-        </div>
-      </section>
+      <HomeHeroDashboard />
 
       {/* Technology Explanation */}
       <section className="mx-auto mt-40 max-w-7xl px-6">
@@ -248,7 +190,7 @@ export default function ApplicationHomePage() {
             },
           ].map((faq, i) => (
             <div key={i} className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
-              <h4 className="font-bold text-sky-200 mb-2">? {faq.q}</h4>
+              <h4 className="font-bold text-sky-200 mb-2">{faq.q}</h4>
               <p className="text-sm text-white/50 leading-relaxed font-medium">{faq.a}</p>
             </div>
           ))}

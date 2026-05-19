@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
 
 import { fetchMarketSummary, type MarketItem } from "@/lib/api";
 import { analizForecastHref } from "@/lib/instruments";
@@ -11,11 +11,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 const LOAD_TIMEOUT_MS = 25_000;
+const PAGE_SIZE = 10;
 
 export function MarketSummary({ readonly = false }: { readonly?: boolean }) {
   const [data, setData] = useState<MarketItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -31,6 +33,7 @@ export function MarketSummary({ readonly = false }: { readonly?: boolean }) {
         return;
       }
       setData(res);
+      setPage(0);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Piyasa verisi alınamadı";
       setError(msg);
@@ -73,30 +76,66 @@ export function MarketSummary({ readonly = false }: { readonly?: boolean }) {
     );
   }
 
+  const pageCount = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageStart = safePage * PAGE_SIZE;
+  const visibleData = Array.from(
+    { length: Math.min(PAGE_SIZE, data.length) },
+    (_, i) => data[(pageStart + i) % data.length],
+  );
+  const hasPages = pageCount > 1;
+
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-      {data.map((item) => {
+    <div className="space-y-4">
+      {hasPages ? (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/35">
+            Popüler varlıklar · {safePage + 1}/{pageCount}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => (p - 1 + pageCount) % pageCount)}
+              className="inline-flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/55 transition hover:border-sky-400/30 hover:bg-sky-500/10 hover:text-sky-300"
+              aria-label="Önceki piyasa varlıkları"
+            >
+              <ChevronLeft className="size-4" aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => (p + 1) % pageCount)}
+              className="inline-flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/55 transition hover:border-sky-400/30 hover:bg-sky-500/10 hover:text-sky-300"
+              aria-label="Sonraki piyasa varlıkları"
+            >
+              <ChevronRight className="size-4" aria-hidden />
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        {visibleData.map((item) => {
         const isUp = item.change_pct >= 0;
         
         const Content = (
           <>
-            <div className="flex flex-col">
+            <div className="flex min-w-0 flex-col">
               <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">
                 {item.symbol}
               </span>
               <span className="mt-1 truncate text-sm font-semibold text-white">{item.name}</span>
             </div>
-            <div className="mt-4 flex items-end justify-between gap-2">
-              <span className="font-mono text-lg font-bold tabular-nums text-white">
+            <div className="mt-4 flex min-w-0 items-end justify-between gap-2">
+              <span className="min-w-0 truncate font-mono text-base font-bold tabular-nums text-white sm:text-lg">
                 {item.price.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}
               </span>
               <div
                 className={cn(
-                  "flex shrink-0 items-center gap-0.5 text-xs font-bold",
-                  isUp ? "text-emerald-400" : "text-rose-400",
+                  "flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-bold leading-none",
+                  isUp ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400",
                 )}
               >
-                {isUp ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+                {isUp ? <TrendingUp className="size-3 shrink-0" /> : <TrendingDown className="size-3 shrink-0" />}
                 {Math.abs(item.change_pct).toFixed(2)}%
               </div>
             </div>
@@ -104,7 +143,7 @@ export function MarketSummary({ readonly = false }: { readonly?: boolean }) {
         );
 
         const commonClass = cn(
-          "flex min-h-[8rem] flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition-all duration-300 backdrop-blur-sm",
+          "flex min-h-[8rem] min-w-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition-all duration-300 backdrop-blur-sm sm:p-5",
           !readonly && "hover:border-sky-500/50 hover:bg-white/[0.08] hover:shadow-2xl hover:shadow-sky-500/10 hover:-translate-y-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
         );
 
@@ -126,7 +165,8 @@ export function MarketSummary({ readonly = false }: { readonly?: boolean }) {
             {Content}
           </Link>
         );
-      })}
+        })}
+      </div>
     </div>
   );
 }

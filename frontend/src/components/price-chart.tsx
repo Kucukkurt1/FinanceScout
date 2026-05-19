@@ -223,9 +223,11 @@ function ChartToolbar({
 export function PriceChart({
   data,
   className,
+  compact = false,
 }: {
   data: ChartRow[];
   className?: string;
+  compact?: boolean;
 }) {
   const [viewId, setViewId] = useState<ChartViewId>("all");
   const view = viewFromId(viewId);
@@ -240,7 +242,7 @@ export function PriceChart({
   return (
     <div className={cn("flex w-full min-w-0 flex-col", className)}>
       <ChartToolbar viewId={viewId} onView={setViewId} />
-      <div className="relative w-full min-h-[420px] h-[min(58vh,620px)]">
+      <div className={cn("relative w-full", compact ? "h-[240px] min-h-[240px]" : "min-h-[420px] h-[min(58vh,620px)]")}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={displayData} margin={{ top: 16, right: 12, bottom: 12, left: 4 }}>
             <defs>

@@ -175,7 +175,7 @@ export function SiteAssistant() {
     <div className="pointer-events-none fixed bottom-5 right-5 z-[150] flex flex-col items-end gap-3 md:bottom-8 md:right-8">
       <div
         className={cn(
-          "pointer-events-auto flex max-h-[min(38rem,calc(100dvh-8rem))] w-[min(24rem,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80 text-white shadow-2xl backdrop-blur-xl ring-1 ring-white/10 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
+          "pointer-events-auto flex max-h-[min(42rem,calc(100dvh-8rem))] w-[min(34rem,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80 text-white shadow-2xl backdrop-blur-xl ring-1 ring-white/10 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
           open ? "translate-y-0 opacity-100 scale-100" : "pointer-events-none translate-y-4 opacity-0 scale-95",
         )}
         aria-hidden={!open}
@@ -234,8 +234,8 @@ export function SiteAssistant() {
                       </span>
                     </div>
                   </div>
-                  <div className="h-[180px] w-full p-2">
-                    <PriceChart data={mapToChartRows(m.forecastData)} className="h-full min-h-[140px]" />
+                  <div className="w-full p-2">
+                    <PriceChart data={mapToChartRows(m.forecastData)} className="min-h-[280px]" compact />
                   </div>
                 </div>
               )}

@@ -18,7 +18,7 @@ const SYSTEM = `Sen FinanceScout sitesinin yardımcı asistanısın. Türkçe ya
 Site: finansal veri özeti, Prophet tabanlı tahmin/grafik arayüzü ve bilgilendirici içerikler sunar.
 Yatırım tavsiyesi verme; "bilgilendirme amaçlıdır" uyarısını gerektiğinde hatırlat.
 
-KULLANICI TAHMİN/KUR SORARSA:ç
+KULLANICI TAHMİN/KUR SORARSA:
 - 'get_forecast' aracını kullanarak güncel veriyi ve tahmini al.
 - Gelen veriye göre (RMSE, MAE vb.) modelin güvenilirliğini ve yönü (artış/azalış) yorumla.
 - Yanıtında mutlaka "Analiz sonucuna göre..." diyerek başla.
@@ -64,6 +64,81 @@ async function callBackendForecast(symbol: string) {
   }
 }
 
+const SYMBOL_ALIASES: Array<[RegExp, string]> = [
+  [/\b(usdtry|usd\/try|dolar|dollar|amerikan doları|abd doları)\b/i, "USDTRY=X"],
+  [/\b(eurtry|eur\/try|euro|avro)\b/i, "EURTRY=X"],
+  [/\b(gbptry|gbp\/try|sterlin|pound)\b/i, "GBPTRY=X"],
+  [/\b(bitcoin|btc)\b/i, "BTC-USD"],
+  [/\b(ethereum|ether|eth)\b/i, "ETH-USD"],
+  [/(altın|altin|altının|altinin|gold|xau|ons)/i, "GC=F"],
+  [/(gümüş|gumus|gümüşün|gumusun|silver)/i, "SI=F"],
+  [/\b(petrol|oil|brent)\b/i, "BZ=F"],
+  [/\b(thy|thy hisseleri|thy hisse|thy ao|thyao)\b/i, "THYAO.IS"],
+];
+
+function directForecastSymbol(text: string): string | null {
+  const normalized = text.toLocaleLowerCase("tr-TR");
+
+  const explicitTicker = text.match(/\b[A-Z0-9]{2,8}(?:[-.=][A-Z0-9]{1,5})?(?:\.IS)?\b/);
+  if (explicitTicker?.[0] && /[-.=]|TRY|USD|BTC|ETH|XAU|XAG/.test(explicitTicker[0])) {
+    const ticker = explicitTicker[0].toUpperCase();
+    if (ticker === "USDTRY") return "USDTRY=X";
+    if (ticker === "EURTRY") return "EURTRY=X";
+    if (ticker === "GBPTRY") return "GBPTRY=X";
+    return ticker;
+  }
+
+  const asksForecast =
+    /\b(ne olur|tahmin|forecast|kur|fiyat|analiz|grafik|yüksel|yuksel|düşer|duser|çıkar|cikar|artar|artış|artista|artışta|hisse|kaç|kac|durum|genel)\b/i.test(normalized);
+  if (!asksForecast) return null;
+
+  for (const [pattern, symbol] of SYMBOL_ALIASES) {
+    if (pattern.test(normalized)) return symbol;
+  }
+
+  return null;
+}
+
+function finiteNumber(n: unknown): number | null {
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+
+function fmtNum(n: number | null, digits = 2): string {
+  if (n === null) return "veri yok";
+  return n.toLocaleString("tr-TR", { maximumFractionDigits: digits });
+}
+
+function fmtPct(n: number | null): string {
+  if (n === null) return "veri yok";
+  return `%${(n * 100).toLocaleString("tr-TR", { maximumFractionDigits: 2 })}`;
+}
+
+function forecastReply(symbol: string, forecastData: any): string {
+  if (forecastData?.error) {
+    return `Analiz sonucuna göre ${symbol} için veri alınamadı: ${forecastData.error}`;
+  }
+
+  const history = Array.isArray(forecastData?.history) ? forecastData.history : [];
+  const forecast = Array.isArray(forecastData?.forecast) ? forecastData.forecast : [];
+  const lastHistory = [...history].reverse().find((p) => finiteNumber(p?.y) !== null);
+  const lastForecast = [...forecast].reverse().find((p) => finiteNumber(p?.yhat) !== null);
+  const current = finiteNumber(lastHistory?.y);
+  const target = finiteNumber(lastForecast?.yhat);
+  const change = current !== null && target !== null && current !== 0 ? (target - current) / current : null;
+  const direction = change === null ? "yön net hesaplanamadı" : change >= 0 ? "yukarı yönlü" : "aşağı yönlü";
+  const metrics = forecastData?.backtest_metrics ?? {};
+  const mape = finiteNumber(metrics.mape);
+  const rmse = finiteNumber(metrics.rmse);
+  const mae = finiteNumber(metrics.mae);
+
+  return [
+    `Analiz sonucuna göre ${symbol} için ${forecast.length || 14} günlük görünüm ${direction}.`,
+    `Son kapanış yaklaşık ${fmtNum(current)}, dönem sonu tahmin yaklaşık ${fmtNum(target)}${change === null ? "" : ` (${fmtPct(change)})`}.`,
+    `Model hata göstergeleri: MAPE ${fmtPct(mape)}, RMSE ${fmtNum(rmse, 4)}, MAE ${fmtNum(mae, 4)}.`,
+    "Aşağıdaki grafikte geçmiş fiyatlar, tahmin çizgisi ve güven aralığı yer alır. Bu çıktı bilgilendirme amaçlıdır, yatırım tavsiyesi değildir.",
+  ].join("\n\n");
+}
+
 type ChatMsg = { role: "user" | "assistant"; content: string };
 
 function trimHistory(msgs: ChatMsg[]): ChatMsg[] {
@@ -98,14 +173,6 @@ function isWrongModelError(status: number, message: string): boolean {
 }
 
 export async function POST(req: Request) {
-  const key = process.env.GEMINI_API_KEY?.trim();
-  if (!key) {
-    return NextResponse.json(
-      { error: "Asistan yapılandırılmamış. Sunucuda GEMINI_API_KEY tanımlayın." },
-      { status: 503 },
-    );
-  }
-
   let body: unknown;
   try {
     body = await req.json();
@@ -116,6 +183,25 @@ export async function POST(req: Request) {
   const messages = (body as { messages?: ChatMsg[] }).messages;
   if (!Array.isArray(messages) || messages.length === 0) {
     return NextResponse.json({ error: "Mesaj listesi gerekli." }, { status: 400 });
+  }
+
+  const lastUser = [...messages].reverse().find((m) => m?.role === "user" && typeof m.content === "string");
+  const directSymbol = lastUser ? directForecastSymbol(lastUser.content) : null;
+  if (directSymbol) {
+    const forecastData = await callBackendForecast(directSymbol);
+    return NextResponse.json({
+      reply: forecastReply(directSymbol, forecastData),
+      forecastData: forecastData.error ? null : forecastData,
+      model_used: "backend-forecast",
+    });
+  }
+
+  const key = process.env.GEMINI_API_KEY?.trim();
+  if (!key) {
+    return NextResponse.json(
+      { error: "Asistan yapılandırılmamış. Sunucuda GEMINI_API_KEY tanımlayın." },
+      { status: 503 },
+    );
   }
 
   const trimmed = trimHistory(messages);
@@ -197,7 +283,7 @@ export async function POST(req: Request) {
 
         const secondData = await secondResponse.json();
         const finalCandidate = secondData.candidates?.[0];
-        const finalText = finalCandidate?.content?.parts?.[0]?.text || "";
+        const finalText = finalCandidate?.content?.parts?.[0]?.text || forecastReply(args.symbol, forecastData);
 
         return NextResponse.json({
           reply: finalText,
