@@ -182,7 +182,7 @@ export default function HizmetlerPage() {
                 <ArrowRight className="ml-2 size-5" />
               </Link>
               <Link
-                href="/iletisim"
+                href="/hakkimizda"
                 className={cn(buttonVariants({ variant: "glass", size: "lg" }), "h-14 w-full px-10 sm:w-auto")}
               >
                 Destek Al

@@ -23,12 +23,9 @@ const NAV_GROUPS = [
     icon: Layers,
     links: [
       { href: "/hizmetler", label: "Hizmetler" },
-      { href: "/guvenlik", label: "Güvenlik" },
       { href: "/hakkimizda", label: "Hakkımızda" },
-      { href: "/iletisim", label: "İletişim" },
-      { href: "/yardim", label: "Yardım merkezi" },
-      { href: "/yasal/gizlilik", label: "Gizlilik bildirimi" },
-      { href: "/yasal/kvkk", label: "KVKK aydınlatma" },
+      { href: "/yasal", label: "Yasal Bilgiler" },
+      { href: "/bize-ulasin", label: "Bize Ulaşın" },
     ],
   },
 ] as const;

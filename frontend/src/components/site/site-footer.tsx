@@ -6,22 +6,21 @@ const FOOTER_COL = [
     links: [
       { href: "/hakkimizda", label: "Hakkımızda" },
       { href: "/hizmetler", label: "Hizmetler" },
-      { href: "/iletisim", label: "İletişim" },
     ],
   },
   {
     title: "Güvenlik ve yasal",
     links: [
-      { href: "/guvenlik", label: "Güvenlik" },
-      { href: "/yasal/gizlilik", label: "Gizlilik bildirimi" },
-      { href: "/yasal/kvkk", label: "KVKK aydınlatma" },
+      { href: "/yasal", label: "Yasal Bilgiler" },
+      { href: "/yasal#gizlilik", label: "Gizlilik Bildirimi" },
+      { href: "/yasal#kvkk", label: "KVKK Aydınlatma" },
     ],
   },
   {
     title: "Araçlar",
     links: [
       { href: "/analiz", label: "Analiz merkezi" },
-      { href: "/yardim", label: "Yardım merkezi" },
+      { href: "/bize-ulasin", label: "Bize Ulaşın" },
     ],
   },
 ] as const;

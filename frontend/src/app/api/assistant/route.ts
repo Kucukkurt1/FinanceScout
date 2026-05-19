@@ -16,12 +16,14 @@ const MAX_TURNS = 24;
 
 const SYSTEM = `Sen FinanceScout sitesinin yardımcı asistanısın. Türkçe yanıt ver; kısa ve net ol.
 Site: finansal veri özeti, Prophet tabanlı tahmin/grafik arayüzü ve bilgilendirici içerikler sunar.
-Yatırım tavsiyesi verme; "bilgilendirme amaçlıdır" uyarısını gerektiğinde hatırlat.
+Yatırım tavsiyesi verme; "bilgilendirme amaçlıdır" uyarısını mutlaka ekle.
 
 KULLANICI TAHMİN/KUR SORARSA:
 - 'get_forecast' aracını kullanarak güncel veriyi ve tahmini al.
-- Gelen veriye göre (RMSE, MAE vb.) modelin güvenilirliğini ve yönü (artış/azalış) yorumla.
 - Yanıtında mutlaka "Analiz sonucuna göre..." diyerek başla.
+- Sistemin beklentisi olan hedef fiyatı, olası en düşük (min) ve en yüksek (max) seviyeleri (yhat, yhat_lower, yhat_upper) mutlaka rakamlarla belirt.
+- Örn: "Sistemimizin beklentisi olan hedef fiyat X, olası en düşük seviye Y ve en yüksek seviye Z'dir."
+- Gelen veriye göre (RMSE, MAE vb.) modelin güvenilirliğini ve yönü (artış/azalış) yorumla.
 - Eğer sembolü tam çıkaramazsan en yakın tahmini (örn. "dolar" için "USDTRY=X") kullan.`;
 
 const TOOLS = [
@@ -29,7 +31,7 @@ const TOOLS = [
     function_declarations: [
       {
         name: "get_forecast",
-        description: "Belirtilen finansal sembol (ticker) için geçmiş verileri ve gelecek tahminlerini getirir. Örn: 'USDTRY=X', 'BTC-USD', 'GC=F', 'THYAO.IS'.",
+        description: "Belirtilen finansal sembol (ticker) için geçmiş verileri ve gelecek tahminlerini getirir. Yanıt olarak yhat (tahmin), yhat_lower (min beklenti) ve yhat_upper (max beklenti) değerlerini içeren bir liste döner.",
         parameters: {
           type: "object",
           properties: {
@@ -45,7 +47,7 @@ const TOOLS = [
   },
 ];
 
-async function callBackendForecast(symbol: string) {
+async function callBackendForecast(symbol: string, forecastDays = 14) {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   try {
     const res = await fetch(`${baseUrl}/forecast`, {
@@ -54,7 +56,7 @@ async function callBackendForecast(symbol: string) {
       body: JSON.stringify({
         symbol,
         history_days: 365,
-        forecast_days: 14,
+        forecast_days: forecastDays,
       }),
     });
     if (!res.ok) return { error: `Backend hatası: ${res.status}` };
@@ -99,6 +101,14 @@ function directForecastSymbol(text: string): string | null {
   return null;
 }
 
+function directForecastDays(text: string): number {
+  const normalized = text.toLocaleLowerCase("tr-TR");
+  if (/\b(yarın|yarin)\b/i.test(normalized)) return 1;
+  if (/\b(haftaya|1 hafta|bir hafta|hafta sonra|gelecek hafta)\b/i.test(normalized)) return 7;
+  if (/\b(1 ay|bir ay|ay sonra|gelecek ay)\b/i.test(normalized)) return 30;
+  return 14;
+}
+
 function finiteNumber(n: unknown): number | null {
   return typeof n === "number" && Number.isFinite(n) ? n : null;
 }
@@ -113,6 +123,21 @@ function fmtPct(n: number | null): string {
   return `%${(n * 100).toLocaleString("tr-TR", { maximumFractionDigits: 2 })}`;
 }
 
+function priceUnit(symbol: string): string {
+  if (symbol.includes("TRY")) return "TL";
+  if (symbol === "GC=F" || symbol === "SI=F") return "USD/ons";
+  if (symbol.includes("-USD") || symbol.includes("=F") || ["AAPL", "MSFT", "NVDA", "TSLA", "META", "GOOGL", "AMZN"].includes(symbol)) {
+    return "USD";
+  }
+  return "";
+}
+
+function fmtPrice(n: number | null, symbol: string): string {
+  const unit = priceUnit(symbol);
+  const value = fmtNum(n, symbol.includes("TRY") ? 4 : 2);
+  return unit && value !== "veri yok" ? `${value} ${unit}` : value;
+}
+
 function forecastReply(symbol: string, forecastData: any): string {
   if (forecastData?.error) {
     return `Analiz sonucuna göre ${symbol} için veri alınamadı: ${forecastData.error}`;
@@ -122,10 +147,15 @@ function forecastReply(symbol: string, forecastData: any): string {
   const forecast = Array.isArray(forecastData?.forecast) ? forecastData.forecast : [];
   const lastHistory = [...history].reverse().find((p) => finiteNumber(p?.y) !== null);
   const lastForecast = [...forecast].reverse().find((p) => finiteNumber(p?.yhat) !== null);
+  
   const current = finiteNumber(lastHistory?.y);
   const target = finiteNumber(lastForecast?.yhat);
+  const minExpected = finiteNumber(lastForecast?.yhat_lower);
+  const maxExpected = finiteNumber(lastForecast?.yhat_upper);
+  
   const change = current !== null && target !== null && current !== 0 ? (target - current) / current : null;
   const direction = change === null ? "yön net hesaplanamadı" : change >= 0 ? "yukarı yönlü" : "aşağı yönlü";
+  
   const metrics = forecastData?.backtest_metrics ?? {};
   const mape = finiteNumber(metrics.mape);
   const rmse = finiteNumber(metrics.rmse);
@@ -133,9 +163,10 @@ function forecastReply(symbol: string, forecastData: any): string {
 
   return [
     `Analiz sonucuna göre ${symbol} için ${forecast.length || 14} günlük görünüm ${direction}.`,
-    `Son kapanış yaklaşık ${fmtNum(current)}, dönem sonu tahmin yaklaşık ${fmtNum(target)}${change === null ? "" : ` (${fmtPct(change)})`}.`,
+    `Son kapanış fiyatı ${fmtPrice(current, symbol)}.`,
+    `Sistemimize göre dönem sonunda beklenen hedef fiyat ${fmtPrice(target, symbol)} olabilir. Olası en düşük senaryo ${fmtPrice(minExpected, symbol)}, olası en yüksek senaryo ise ${fmtPrice(maxExpected, symbol)} olarak hesaplanmıştır${change === null ? "" : ` (${fmtPct(change)} değişim beklentisi)`}.`,
     `Model hata göstergeleri: MAPE ${fmtPct(mape)}, RMSE ${fmtNum(rmse, 4)}, MAE ${fmtNum(mae, 4)}.`,
-    "Aşağıdaki grafikte geçmiş fiyatlar, tahmin çizgisi ve güven aralığı yer alır. Bu çıktı bilgilendirme amaçlıdır, yatırım tavsiyesi değildir.",
+    "Aşağıdaki grafikte geçmiş fiyatlar, tahmin çizgisi ve min/max güven aralığı yer alır. Bu çıktı yalnızca bilgilendirme amaçlıdır; yatırım tavsiyesi değildir.",
   ].join("\n\n");
 }
 
@@ -188,7 +219,7 @@ export async function POST(req: Request) {
   const lastUser = [...messages].reverse().find((m) => m?.role === "user" && typeof m.content === "string");
   const directSymbol = lastUser ? directForecastSymbol(lastUser.content) : null;
   if (directSymbol) {
-    const forecastData = await callBackendForecast(directSymbol);
+    const forecastData = await callBackendForecast(directSymbol, directForecastDays(lastUser?.content ?? ""));
     return NextResponse.json({
       reply: forecastReply(directSymbol, forecastData),
       forecastData: forecastData.error ? null : forecastData,
