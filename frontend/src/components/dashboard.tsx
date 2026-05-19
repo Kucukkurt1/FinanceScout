@@ -423,7 +423,7 @@ export function Dashboard() {
       const msg = e instanceof Error ? e.message : String(e);
       setError(
         msg ||
-          "İstek başarısız oldu. Sembolün doğru olduğundan emin olun; sunucunun çalıştığını kontrol edin (localhost:8000).",
+          "İstek başarısız oldu. Sembolün doğru olduğundan emin olun; veri servisinin erişilebilir olduğunu kontrol edin.",
       );
     } finally {
       setLoading(false);

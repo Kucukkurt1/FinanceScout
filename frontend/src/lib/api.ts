@@ -1,35 +1,12 @@
-/** Tarayıcıda varsayılan proxy (/api → backend). SSR için doğrudan backend. */
-function apiBase(): string {
-  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
-  if (typeof window !== "undefined") return "/api";
-  return "http://127.0.0.1:8000";
-}
+import { apiNetworkErrorHint, buildApiUrl, getApiBase } from "@/lib/api-base";
 
 function getBase() {
-  return apiBase();
+  return getApiBase();
 }
 
 function apiUrl(path: string, params?: Record<string, string | undefined>): string {
-  const base = getBase();
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params ?? {})) {
-    if (value) search.set(key, value);
-  }
-
-  if (base.startsWith("/")) {
-    const qs = search.toString();
-    return qs ? `${base}${path}?${qs}` : `${base}${path}`;
-  }
-
-  const url = new URL(path, base);
-  for (const [key, value] of search) {
-    url.searchParams.set(key, value);
-  }
-  return url.toString();
+  return buildApiUrl(path, params);
 }
-
-const NETWORK_HINT =
-  "Tarayıcı API sunucusuna bağlanamadı. Backend çalışıyor mu? `backend` klasöründe: uvicorn main:app --reload --port 8000";
 
 function isLikelyNetworkFailure(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
@@ -48,7 +25,7 @@ async function netFetch(input: RequestInfo | URL, init?: RequestInit): Promise<R
   try {
     return await fetch(input, init);
   } catch (err) {
-    if (isLikelyNetworkFailure(err)) throw new Error(NETWORK_HINT);
+    if (isLikelyNetworkFailure(err)) throw new Error(apiNetworkErrorHint());
     throw err;
   }
 }

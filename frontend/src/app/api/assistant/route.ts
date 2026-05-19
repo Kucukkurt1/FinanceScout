@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { buildApiUrl } from "@/lib/api-base";
+
 /** Kısa adlar (ör. gemini-1.5-flash) API’de kalkmış olabiliyor; tam/sürüm adları ve zincir kullanılıyor. */
 const DEFAULT_MODEL = "gemini-2.5-flash";
 
@@ -48,9 +50,8 @@ const TOOLS = [
 ];
 
 async function callBackendForecast(symbol: string, forecastDays = 14) {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   try {
-    const res = await fetch(`${baseUrl}/forecast`, {
+    const res = await fetch(buildApiUrl("/forecast"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
