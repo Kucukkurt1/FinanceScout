@@ -9,6 +9,25 @@ function getBase() {
   return apiBase();
 }
 
+function apiUrl(path: string, params?: Record<string, string | undefined>): string {
+  const base = getBase();
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value) search.set(key, value);
+  }
+
+  if (base.startsWith("/")) {
+    const qs = search.toString();
+    return qs ? `${base}${path}?${qs}` : `${base}${path}`;
+  }
+
+  const url = new URL(path, base);
+  for (const [key, value] of search) {
+    url.searchParams.set(key, value);
+  }
+  return url.toString();
+}
+
 const NETWORK_HINT =
   "Tarayıcı API sunucusuna bağlanamadı. Backend çalışıyor mu? `backend` klasöründe: uvicorn main:app --reload --port 8000";
 
@@ -106,6 +125,14 @@ export type MarketSummaryApiResponse = {
   items: MarketItem[];
 };
 
+export type SymbolSearchResult = {
+  symbol: string;
+  name: string;
+  exchange?: string | null;
+  quote_type?: string | null;
+  source?: string;
+};
+
 export async function fetchMarketSummary(): Promise<MarketItem[]> {
   const res = await netFetch(`${getBase()}/market-summary`);
   if (!res.ok) throw new Error(await parseErrorDetail(res));
@@ -113,13 +140,17 @@ export async function fetchMarketSummary(): Promise<MarketItem[]> {
   return j.items ?? [];
 }
 
-export async function fetchSymbols(q?: string): Promise<string[]> {
-  const url = new URL("/symbols/search", getBase());
-  if (q?.trim()) url.searchParams.set("q", q.trim());
-  const res = await netFetch(url.toString());
+export async function fetchSymbolSearch(q?: string): Promise<SymbolSearchResult[]> {
+  const res = await netFetch(apiUrl("/symbols/search", { q: q?.trim() }));
   if (!res.ok) throw new Error(await parseErrorDetail(res));
-  const j = (await res.json()) as { symbols?: string[] };
-  return j.symbols ?? [];
+  const j = (await res.json()) as { symbols?: string[]; results?: SymbolSearchResult[] };
+  if (Array.isArray(j.results)) return j.results;
+  return (j.symbols ?? []).map((symbol) => ({ symbol, name: symbol, source: "legacy" }));
+}
+
+export async function fetchSymbols(q?: string): Promise<string[]> {
+  const results = await fetchSymbolSearch(q);
+  return results.map((row) => row.symbol);
 }
 
 export async function postForecast(body: {
@@ -182,19 +213,13 @@ export async function postCompare(symbols: string[], history_days = 365): Promis
 }
 
 export async function fetchQuality(symbol: string, history_days = 365): Promise<QualityResponse> {
-  const url = new URL("/quality", getBase());
-  url.searchParams.set("symbol", symbol);
-  url.searchParams.set("history_days", String(history_days));
-  const res = await netFetch(url.toString());
+  const res = await netFetch(apiUrl("/quality", { symbol, history_days: String(history_days) }));
   if (!res.ok) throw new Error(await parseErrorDetail(res));
   return (await res.json()) as QualityResponse;
 }
 
 export async function fetchEvents(from?: string, to?: string): Promise<MarketEvent[]> {
-  const url = new URL("/events", getBase());
-  if (from) url.searchParams.set("from", from);
-  if (to) url.searchParams.set("to", to);
-  const res = await netFetch(url.toString());
+  const res = await netFetch(apiUrl("/events", { from, to }));
   if (!res.ok) throw new Error(await parseErrorDetail(res));
   const j = (await res.json()) as { events?: MarketEvent[] };
   return j.events ?? [];

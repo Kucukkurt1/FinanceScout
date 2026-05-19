@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import {
@@ -16,15 +16,30 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import type { AssetClassParam, BacktestApiResponse, ForecastApiResponse, Metrics } from "@/lib/api";
-import { fetchSymbols, postBacktest, postForecast } from "@/lib/api";
+import type { AssetClassParam, BacktestApiResponse, ForecastApiResponse, SymbolSearchResult } from "@/lib/api";
+import { fetchSymbolSearch, postBacktest, postForecast } from "@/lib/api";
 import { STORAGE_KEYS, writeJson, type LastAnalysisSnapshot } from "@/lib/storage";
 import {
   INSTRUMENT_CATEGORY_META,
   INSTRUMENTS_BY_CATEGORY,
+  getAllInstruments,
   inferInstrumentFromSymbol,
   type InstrumentCategoryId,
+  type InstrumentOption,
 } from "@/lib/instruments";
+import {
+  BarChart3,
+  Boxes,
+  CheckCircle2,
+  DatabaseZap,
+  Globe,
+  LineChart,
+  Loader2,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
 
 function buildForecastChartData(res: ForecastApiResponse): ChartRow[] {
   const hist: ChartRow[] = res.history.map((h) => ({
@@ -111,105 +126,43 @@ function assetLabelTr(ac: string) {
   return ac;
 }
 
-function MetricTile({
-  title,
-  hint,
-  value,
-}: {
-  title: string;
-  hint: string;
-  value: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <p className="text-white text-sm font-semibold">{title}</p>
-      <p className="text-sky-200/60 text-xs leading-relaxed">{hint}</p>
-      <div className="text-white pt-1 text-xl font-semibold tabular-nums tracking-tight">{value}</div>
-    </div>
-  );
+type SearchRow = InstrumentOption & {
+  exchange?: string | null;
+  quoteType?: string | null;
+  source?: string;
+};
+
+function quoteTypeLabel(type?: string | null) {
+  const normalized = type?.toUpperCase();
+  if (!normalized) return "Yahoo";
+  if (normalized.includes("CRYPTO")) return "Kripto";
+  if (normalized.includes("CURRENCY") || normalized === "FX") return "Döviz";
+  if (normalized.includes("ETF")) return "ETF";
+  if (normalized.includes("INDEX")) return "Endeks";
+  if (normalized.includes("FUTURE")) return "Vadeli";
+  if (normalized.includes("EQUITY") || normalized === "STOCK") return "Hisse";
+  return type;
 }
 
-function MetricsSection({
-  title,
-  m,
-  trainUntil,
-}: {
-  title: string;
-  m: Metrics;
-  trainUntil?: string | null;
-}) {
-  const risk = riskFromVol(m.volatility_annualized);
-  const rmseHint =
-    trainUntil && m.holdout_points != null
-      ? `Model ${trainUntil} tarihine kadar eğitildi; bu tarihten sonraki gerçek kapanışlarla karşılaştırıldı (${m.holdout_points} ortak işlem günü). Rakam düştükçe tahmin gerçeğe yakın demektir.`
-      : "Son tutulan test penceresinde hatanın büyüklüğü. Rakam düştükçe model gerçek fiyata daha yakın demektir.";
-  const biasFinite = m.mean_bias != null && Number.isFinite(m.mean_bias);
-
-  return (
-    <section className="flex flex-col gap-5">
-      <h2 className="font-heading text-white text-xl font-semibold tracking-tight">{title}</h2>
-      {trainUntil ? (
-        <p className="border-primary/35 bg-sky-500/10 text-sky-100 border-l-[3px] px-4 py-3 text-sm leading-relaxed">
-          <strong className="text-white">Kesit modu:</strong> Model veriyi yalnızca{" "}
-          <strong className="text-white">{trainUntil}</strong> tarihine kadar «gördü». Bu tarihten sonraki gerçek fiyatlar,
-          modele kapalı kalarak karşılaştırmada kullanıldı — böylece «bilmediği dönem» hatasını ölçebilirsiniz.
-        </p>
-      ) : null}
-      <div className="grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-5">
-        <MetricTile title="Hata Payı (%)" hint="Modelin tahminlerinin gerçek fiyatlardan ortalama yüzde kaç saptığını gösterir. %5 altı mükemmel, %10 altı başarılı kabul edilir." value={fmtPct(m.mape)} />
-        <MetricTile title="RMSE" hint={rmseHint} value={fmtNum(m.rmse)} />
-        <MetricTile
-          title="MAE"
-          hint="Ortalama mutlak sapma; RMSE ile birlikte yorumlanır. Küçük olması iyidir."
-          value={fmtNum(m.mae)}
-        />
-        <MetricTile
-          title="Günlük oynaklık"
-          hint="Son günlük kapanışlara göre, bir günden diğerine sıçrama özeti."
-          value={fmtPct(m.volatility_daily)}
-        />
-        <MetricTile
-          title="Yıllıklaştırılmış oynaklık"
-          hint={
-            m.volatility_annualization_days != null
-              ? `Günlük oynaklığı yıla ölçeklemek için √${m.volatility_annualization_days} kullanıldı (bilgi amaçlı).`
-              : "Günlük oynaklığın kabaca yıllık karşılığı (bilgi amaçlı)."
-          }
-          value={
-            <div className="flex flex-col gap-1">
-              <span>{fmtPct(m.volatility_annualized)}</span>
-            </div>
-          }
-        />
-        <div className="flex flex-col gap-2 py-1">
-          <p className="text-white text-sm font-semibold">Risk özeti</p>
-          <p className="text-sky-200/40 text-xs leading-relaxed">
-            Yıllıklaştırılmış oynaklığa göre kabaca bir etiket; yatırım tavsiyesi değildir.
-          </p>
-          <span className={`mt-1 inline-flex w-fit rounded-md px-2.5 py-1 text-sm font-medium ${risk.className}`}>
-            {risk.label}
-          </span>
-        </div>
-      </div>
-      {biasFinite ? (
-        <p className="text-sky-200/60 text-sm leading-relaxed">
-          <strong className="text-white">Ortalama sapma (bias):</strong> tahminler gerçek fiyatın ortalama olarak{" "}
-          <strong className="text-white">{fmtNum(m.mean_bias)}</strong> kadar{" "}
-          {(m.mean_bias as number) > 0 ? "üzerinde" : "altında"} kalmış. İleri tahminlerde düzeltme çarpanı düşünmek
-          isterseniz bu işareti referans alabilirsiniz (otomatik uygulanmaz).
-        </p>
-      ) : null}
-    </section>
-  );
+function rowFromSearchResult(result: SymbolSearchResult, fallback?: InstrumentOption): SearchRow {
+  const symbol = result.symbol.trim().toUpperCase();
+  const inferred = inferInstrumentFromSymbol(symbol);
+  return {
+    symbol,
+    label: result.name?.trim() || fallback?.label || symbol,
+    profile: fallback?.profile ?? inferred.profile,
+    exchange: result.exchange,
+    quoteType: result.quote_type,
+    source: result.source,
+  };
 }
 
-const HUB_MODES: HubMode[] = ["compare", "portfolio", "quality", "calendar"];
+const HUB_MODES: HubMode[] = ["compare", "portfolio", "calendar"];
 
 const WORKSPACE_TABS: { id: "forecast" | HubMode; label: string }[] = [
   { id: "forecast", label: "Tahmin" },
   { id: "compare", label: "Karşılaştır" },
   { id: "portfolio", label: "Portföy taslağı" },
-  { id: "quality", label: "Veri kalitesi" },
   { id: "calendar", label: "Olay takvimi" },
 ];
 
@@ -224,8 +177,9 @@ export function Dashboard() {
   const [forecastDays, setForecastDays] = useState(9);
   const [useTrainCutoff, setUseTrainCutoff] = useState(false);
   const [trainUntil, setTrainUntil] = useState("2022-12-31");
-  const [dataStart, setDataStart] = useState("");
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [dataStart] = useState("");
+  const [suggestions, setSuggestions] = useState<SymbolSearchResult[]>([]);
+  const [symbolSearchLoading, setSymbolSearchLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [forecast, setForecast] = useState<ForecastApiResponse | null>(null);
@@ -253,23 +207,25 @@ export function Dashboard() {
     const cutoff = searchParams.get("cutoff");
     const tu = searchParams.get("train_until");
 
-    if (sym) {
-      const upper = sym.trim().toUpperCase();
-      setSymbol(upper);
-      const inferred = inferInstrumentFromSymbol(upper);
-      setPickerCategory(inferred.category);
-      if (ac && ["auto", "crypto", "fx", "stock"].includes(ac)) setAssetClass(ac);
-      else setAssetClass(inferred.profile);
-    } else if (ac && ["auto", "crypto", "fx", "stock"].includes(ac)) {
-      setAssetClass(ac);
-    }
+    window.queueMicrotask(() => {
+      if (sym) {
+        const upper = sym.trim().toUpperCase();
+        setSymbol(upper);
+        const inferred = inferInstrumentFromSymbol(upper);
+        setPickerCategory(inferred.category);
+        if (ac && ["auto", "crypto", "fx", "stock"].includes(ac)) setAssetClass(ac);
+        else setAssetClass(inferred.profile);
+      } else if (ac && ["auto", "crypto", "fx", "stock"].includes(ac)) {
+        setAssetClass(ac);
+      }
 
-    if (hist) setHistoryDays(Number(hist));
-    if (fc) setForecastDays(Number(fc));
-    if (cutoff === "1" || tu) {
-      setUseTrainCutoff(true);
-      if (tu) setTrainUntil(tu);
-    }
+      if (hist) setHistoryDays(Number(hist));
+      if (fc) setForecastDays(Number(fc));
+      if (cutoff === "1" || tu) {
+        setUseTrainCutoff(true);
+        if (tu) setTrainUntil(tu);
+      }
+    });
 
     if (searchParams.get("run") === "1" && workspace !== "forecast") {
       const params = new URLSearchParams(searchParams.toString());
@@ -308,30 +264,69 @@ export function Dashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchSymbols()
-      .then((s) => {
-        if (!cancelled) setSuggestions(s);
-      })
-      .catch(() => {
-        /* offline API — ignore */
-      });
+    const timer = window.setTimeout(() => {
+      setSymbolSearchLoading(true);
+      fetchSymbolSearch(pickerQuery)
+        .then((s) => {
+          if (!cancelled) setSuggestions(s);
+        })
+        .catch(() => {
+          if (!cancelled) setSuggestions([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSymbolSearchLoading(false);
+        });
+    }, pickerQuery.trim() ? 250 : 0);
+
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, []);
+  }, [pickerQuery]);
 
   const forecastChart = useMemo(() => (forecast ? buildForecastChartData(forecast) : []), [forecast]);
   const backtestChart = useMemo(() => (backtest ? buildBacktestChartData(backtest) : []), [backtest]);
 
   const symUpper = symbol.trim().toUpperCase();
+  const allInstruments = useMemo(() => getAllInstruments(), []);
+
   const filteredPickerRows = useMemo(() => {
     const q = pickerQuery.trim().toLowerCase();
-    const list = INSTRUMENTS_BY_CATEGORY[pickerCategory];
-    if (!q) return list;
-    return list.filter(
-      (row) => row.label.toLowerCase().includes(q) || row.symbol.toLowerCase().includes(q),
-    );
-  }, [pickerCategory, pickerQuery]);
+    const localList = q
+      ? allInstruments.filter((row) => row.label.toLowerCase().includes(q) || row.symbol.toLowerCase().includes(q))
+      : INSTRUMENTS_BY_CATEGORY[pickerCategory];
+
+    const rows = new Map<string, SearchRow>();
+    const addRow = (row: SearchRow) => rows.set(row.symbol, row);
+
+    if (q) {
+      for (const result of suggestions) {
+        const upper = result.symbol.trim().toUpperCase();
+        const localHit = allInstruments.find((row) => row.symbol === upper);
+        addRow(rowFromSearchResult(result, localHit));
+      }
+    }
+
+    const typedRaw = pickerQuery.trim();
+    const looksLikeSymbol =
+      /[.\-^=]/.test(typedRaw) ||
+      (/^[A-Za-z][A-Za-z0-9]{0,5}$/.test(typedRaw) && typedRaw === typedRaw.toUpperCase());
+    if (q && looksLikeSymbol && !suggestions.some((s) => s.symbol.toUpperCase() === typedRaw.toUpperCase())) {
+      const typed = typedRaw.toUpperCase();
+      const inferred = inferInstrumentFromSymbol(typed);
+      addRow({
+        symbol: typed,
+        label: "Yazdığınız sembolü kullan",
+        profile: inferred.profile,
+        exchange: "Manuel",
+        quoteType: "TICKER",
+        source: "typed",
+      });
+    }
+
+    for (const row of localList) addRow({ ...row, exchange: "Öne çıkan", quoteType: row.profile, source: "local" });
+    return Array.from(rows.values()).slice(0, q ? 30 : 14);
+  }, [allInstruments, pickerCategory, pickerQuery, suggestions]);
 
   const pickerSelectionLabel = useMemo(() => {
     for (const { id } of INSTRUMENT_CATEGORY_META) {
@@ -340,6 +335,18 @@ export function Dashboard() {
     }
     return null;
   }, [symUpper]);
+
+  const activeSearchRow = useMemo(
+    () => filteredPickerRows.find((row) => row.symbol === symUpper) ?? null,
+    [filteredPickerRows, symUpper],
+  );
+
+  const lastHistoryPoint = forecast ? [...forecast.history].reverse().find((p) => p.y != null) : null;
+  const lastForecastPoint = forecast ? [...forecast.forecast].reverse().find((p) => p.yhat != null) : null;
+  const expectedChange =
+    lastHistoryPoint?.y && lastForecastPoint?.yhat
+      ? (lastForecastPoint.yhat - lastHistoryPoint.y) / lastHistoryPoint.y
+      : null;
 
   async function run(overrides?: { symbol?: string; asset_class?: AssetClassParam }) {
     setError(null);
@@ -428,126 +435,201 @@ export function Dashboard() {
   return (
     <div
       className={cn(
-        "mx-auto grid w-full max-w-[96rem] items-start gap-6 pb-20 pt-0 lg:grid-cols-[minmax(280px,320px)_minmax(0,1fr)] lg:gap-8",
+        "mx-auto grid w-full max-w-[98rem] items-start gap-6 px-4 pb-24 pt-0 sm:px-6 lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] lg:gap-8",
         SITE_NAV_CLEARANCE,
       )}
     >
-      {/* Sol Panel: Ayarlar */}
-      <aside className="space-y-6 lg:sticky lg:top-28 lg:self-start">
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-xl">
-          <h2 className="font-heading mb-6 flex items-center gap-2 text-xl font-bold text-white">
-            <BarChart3 className="size-5 text-white" />
-            Analiz Ayarları
-          </h2>
+      <aside className="space-y-5 lg:sticky lg:top-28 lg:self-start">
+        <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/70 p-5 shadow-2xl shadow-sky-950/20 backdrop-blur-xl">
+          <div className="absolute -right-20 -top-20 size-52 rounded-full bg-sky-500/20 blur-3xl" />
+          <div className="absolute -bottom-24 left-6 size-48 rounded-full bg-indigo-500/20 blur-3xl" />
 
-          <div className="space-y-6">
-            {/* Varlık Seçici */}
-            <div className="space-y-3">
-              <Label className="text-[10px] font-bold uppercase tracking-widest text-white/50">Varlık Seçimi</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {INSTRUMENT_CATEGORY_META.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setPickerCategory(c.id)}
-                    className={cn(
-                      "rounded-xl px-3 py-2 text-[11px] font-bold transition-all",
-                      pickerCategory === c.id 
-                        ? "bg-white text-primary shadow-xl shadow-white/10" 
-                        : "bg-white/5 text-white/60 hover:bg-white/10"
-                    )}
-                  >
-                    {c.title}
-                  </button>
-                ))}
+          <div className="relative space-y-5">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-sky-200">
+                <DatabaseZap className="size-3.5" />
+                Yahoo Finance arama
               </div>
-              
-              <div className="relative mt-4">
-                 <Input
+              <h2 className="font-heading text-2xl font-bold leading-tight text-white">
+                İstediğiniz varlığı yazın, anında bulun.
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-white/55">
+                Dolar, altın, Tesla, Bitcoin… Aklınıza ne geliyorsa yazmanız yeter. Seçtiğiniz anda geçmiş veriler ve
+                AI tahmini hazır olur.
+              </p>
+            </div>
+
+            <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-white/50">Varlık ara</Label>
+                {symbolSearchLoading ? (
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-sky-300">
+                    <Loader2 className="size-3 animate-spin" />
+                    Yahoo aranıyor
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-white/35" />
+                <Input
                   value={pickerQuery}
                   onChange={(e) => setPickerQuery(e.target.value)}
-                  placeholder="Ara (ör. Dolar, BTC)..."
-                  className="h-10 border-white/10 bg-white/5 pl-4 pr-10 text-sm text-white placeholder:text-white/30 focus:ring-primary/30"
+                  placeholder="dinar, altın, petrol, Tesla, USDTRY=X..."
+                  className="h-14 rounded-2xl border-white/10 bg-black/30 pl-11 pr-24 text-sm text-white placeholder:text-white/30 focus-visible:ring-sky-400/30"
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    const typed = pickerQuery.trim().toUpperCase();
+                    if (!typed) return;
+                    const first = filteredPickerRows[0];
+                    const inferred = inferInstrumentFromSymbol(first?.symbol ?? typed);
+                    setSymbol(first?.symbol ?? typed);
+                    setAssetClass(first?.profile ?? inferred.profile);
+                    setPickerCategory(inferred.category);
+                  }}
                 />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const typed = pickerQuery.trim().toUpperCase();
+                    if (!typed) return;
+                    const first = filteredPickerRows[0];
+                    const inferred = inferInstrumentFromSymbol(first?.symbol ?? typed);
+                    setSymbol(first?.symbol ?? typed);
+                    setAssetClass(first?.profile ?? inferred.profile);
+                    setPickerCategory(inferred.category);
+                  }}
+                  className="absolute right-2 top-2 rounded-xl bg-white px-3 py-2 text-[11px] font-bold text-primary transition hover:bg-sky-100"
+                >
+                  Seç
+                </button>
               </div>
 
-              <div className="max-h-48 overflow-y-auto rounded-xl border border-white/10 bg-black/20 pr-1 custom-scrollbar">
+              <div className="max-h-80 overflow-y-auto rounded-2xl border border-white/10 bg-black/25 p-1">
                 {filteredPickerRows.map((row) => {
                   const active = symUpper === row.symbol;
+                  const inferred = inferInstrumentFromSymbol(row.symbol);
                   return (
                     <button
                       key={row.symbol}
+                      type="button"
                       onClick={() => {
                         setSymbol(row.symbol);
                         setAssetClass(row.profile);
+                        setPickerCategory(inferred.category);
                       }}
                       className={cn(
-                        "flex w-full items-center justify-between px-4 py-3 text-left transition-colors",
-                        active ? "bg-white/20 border-l-2 border-white" : "hover:bg-white/5 border-l-2 border-transparent"
+                        "group flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left transition-all",
+                        active
+                          ? "bg-sky-400/15 ring-1 ring-sky-300/30"
+                          : "hover:bg-white/[0.06]",
                       )}
                     >
-                      <div className="flex flex-col">
-                        <span className={cn("text-sm font-bold", active ? "text-white" : "text-white/90")}>{row.label}</span>
-                        <span className={cn("text-[10px] font-medium", active ? "text-white" : "text-white/40")}>{row.symbol}</span>
-                      </div>
-                      {active && <div className="size-1.5 rounded-full bg-white shadow-[0_0_8px_white]" />}
+                      <span className="min-w-0">
+                        <span className={cn("block truncate text-sm font-bold", active ? "text-white" : "text-white/90")}>
+                          {row.label}
+                        </span>
+                        <span className="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-medium text-white/40">
+                          <span className="font-mono text-sky-200/80">{row.symbol}</span>
+                          <span>{row.exchange ?? "Yahoo Finance"}</span>
+                          <span>{quoteTypeLabel(row.quoteType)}</span>
+                        </span>
+                      </span>
+                      {active ? (
+                        <CheckCircle2 className="size-4 shrink-0 text-sky-300" />
+                      ) : (
+                        <span className="size-1.5 shrink-0 rounded-full bg-white/20 transition group-hover:bg-sky-300" />
+                      )}
                     </button>
                   );
                 })}
+                {filteredPickerRows.length === 0 ? (
+                  <div className="px-4 py-6 text-xs leading-relaxed text-white/45">
+                    Yahoo Finance sonucu bulunamadı. Sembolü biliyorsanız doğrudan yazıp <strong className="text-white/70">Seç</strong> butonuna basabilirsiniz.
+                  </div>
+                ) : null}
               </div>
             </div>
 
-            {/* Manuel Sembol */}
-            <div className="space-y-3">
-              <details className="group">
-                <summary className="flex cursor-pointer items-center justify-between text-[10px] font-bold uppercase tracking-widest text-white/50 outline-none">
-                   Özel Sembol Gir
-                   <span className="transition-transform group-open:rotate-180">↓</span>
-                </summary>
-                <div className="mt-4 pt-2">
-                  <Input
-                    value={symbol}
-                    onChange={(e) => setSymbol(e.target.value)}
-                    placeholder="BTC-USD, THYAO.IS..."
-                    className="h-10 border-white/10 bg-white/5 text-sm font-mono text-white"
-                  />
-                </div>
-              </details>
+            <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-white/50">Seçili varlık</Label>
+                <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold text-white/60">
+                  {assetLabelTr(assetClass)}
+                </span>
+              </div>
+              <div className="rounded-2xl bg-black/25 p-4">
+                <p className="truncate text-sm font-semibold text-white">{pickerSelectionLabel ?? activeSearchRow?.label ?? "Özel sembol"}</p>
+                <Input
+                  value={symbol}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setSymbol(next);
+                    const inferred = inferInstrumentFromSymbol(next);
+                    setAssetClass(inferred.profile);
+                    setPickerCategory(inferred.category);
+                  }}
+                  placeholder="BTC-USD, GBPTRY=X, AAPL..."
+                  className="mt-3 h-11 rounded-xl border-white/10 bg-white/5 font-mono text-sm text-white"
+                />
+              </div>
             </div>
 
-            {/* Parametreler */}
-            <div className="grid grid-cols-1 gap-4 border-t border-white/5 pt-6 sm:grid-cols-2">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-white/50">Geçmiş Veri (Gün)</Label>
-                  <span className="text-[9px] font-medium text-white/30 italic">60 - 3650</span>
-                </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-white/45">Geçmiş gün</Label>
                 <Input
                   type="number"
                   value={historyDays}
                   onChange={(e) => setHistoryDays(Number(e.target.value))}
-                  className="h-10 border-white/10 bg-white/5 text-white"
+                  className="h-10 border-white/10 bg-black/25 text-white"
                 />
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-white/50">Tahmin Ufku (Gün)</Label>
-                  <span className="text-[9px] font-medium text-white/30 italic">1 - 90</span>
-                </div>
+              <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-white/45">Tahmin gün</Label>
                 <Input
                   type="number"
                   value={forecastDays}
                   onChange={(e) => setForecastDays(Number(e.target.value))}
-                  className="h-10 border-white/10 bg-white/5 text-white"
+                  className="h-10 border-white/10 bg-black/25 text-white"
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {INSTRUMENT_CATEGORY_META.slice(0, 4).map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setPickerCategory(c.id)}
+                  className={cn(
+                    "rounded-2xl border px-3 py-2 text-[11px] font-bold transition-all",
+                    pickerCategory === c.id
+                      ? "border-white/30 bg-white text-primary"
+                      : "border-white/10 bg-white/[0.04] text-white/55 hover:bg-white/[0.08] hover:text-white",
+                  )}
+                >
+                  {c.title}
+                </button>
+              ))}
             </div>
 
             <Button
               onClick={() => void run()}
               disabled={loading}
-              className={cn(buttonVariants({ variant: "brand", size: "lg" }), "w-full shadow-2xl shadow-primary/20")}
+              className={cn(buttonVariants({ variant: "brand", size: "lg" }), "h-14 w-full rounded-2xl shadow-2xl shadow-sky-500/10")}
             >
-              {loading ? "Hesaplanıyor..." : "Analizi Başlat"}
+              {loading ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Model hesaplıyor
+                </>
+              ) : (
+                <>
+                  <Sparkles className="size-4" />
+                  Grafiği ve tahmini oluştur
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -559,8 +641,37 @@ export function Dashboard() {
         )}
       </aside>
 
-      {/* Sağ Panel: Grafikler ve Sonuçlar */}
-      <main className="min-h-[600px] min-w-0 w-full space-y-8">
+      <main className="min-h-[600px] min-w-0 w-full space-y-7">
+        <section className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-black/20 backdrop-blur-xl md:p-8">
+          <div className="absolute right-0 top-0 size-72 translate-x-1/3 -translate-y-1/2 rounded-full bg-sky-400/15 blur-3xl" />
+          <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div>
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/55">
+                <Boxes className="size-3.5 text-sky-300" />
+                Sınırsız Yahoo Finance kapsamı
+              </div>
+              <h1 className="font-heading text-3xl font-bold tracking-tight text-white md:text-5xl">
+                Aradığınız varlığı bulun, modeli anında grafiğe dökün.
+              </h1>
+              <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/55 md:text-base">
+                Sistem artık sabit listeye bağlı değil. Yahoo Finance aramasıyla döviz, hisse, kripto, emtia ve endeks sembollerini seçebilir; aynı tahmin ve backtest akışında çalıştırabilirsiniz.
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              {[
+                { label: "Kaynak", value: "Yahoo" },
+                { label: "Kapsam", value: "Global" },
+                { label: "Model", value: "AI" },
+              ].map((item) => (
+                <div key={item.label} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-white/35">{item.label}</p>
+                  <p className="mt-1 text-lg font-bold text-white">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <div className="flex flex-wrap gap-2">
           {WORKSPACE_TABS.map((tab) => (
             <button
@@ -586,14 +697,32 @@ export function Dashboard() {
         ) : null}
 
         {showEmptyHint && (
-          <div className="flex h-full min-h-[600px] flex-col items-center justify-center rounded-[40px] border border-dashed border-white/10 bg-white/5 p-20 text-center">
-            <div className="flex size-20 items-center justify-center rounded-3xl bg-white/5 text-white/20 mb-8">
-               <LineChart className="size-10" />
+          <div className="flex h-full min-h-[560px] flex-col items-center justify-center rounded-[40px] border border-dashed border-white/10 bg-white/[0.035] p-10 text-center md:p-20">
+            <div className="mb-8 flex size-20 items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-sky-300/80">
+              <LineChart className="size-10" />
             </div>
-            <h3 className="font-heading text-2xl font-bold text-white">Analize Hazır</h3>
-            <p className="mt-4 max-w-md text-lg font-medium text-white/40">
-              Sol taraftan bir varlık seçip ayarlarınızı yapılandırdıktan sonra &ldquo;Analizi Başlat&rdquo; butonuna tıklayarak sonuçları görebilirsiniz.
+            <h3 className="font-heading text-2xl font-bold text-white">Aradığınız varlığı seçin, grafik hazır olsun</h3>
+            <p className="mt-4 max-w-xl text-base font-medium leading-relaxed text-white/45">
+              Sol panele istediğinizi yazın: dolar, altın, Tesla, Bitcoin… Listeden seçtiğiniz anda geçmiş veriler, AI
+              tahmini ve geriye dönük test grafiği otomatik ekrana gelir.
             </p>
+            <div className="mt-8 flex flex-wrap justify-center gap-2">
+              {["KWDTRY=X", "GC=F", "BTC-USD", "TSLA", "BZ=F"].map((sample) => (
+                <button
+                  key={sample}
+                  type="button"
+                  onClick={() => {
+                    const inferred = inferInstrumentFromSymbol(sample);
+                    setSymbol(sample);
+                    setAssetClass(inferred.profile);
+                    setPickerCategory(inferred.category);
+                  }}
+                  className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 font-mono text-xs font-bold text-white/65 transition hover:bg-white/10 hover:text-white"
+                >
+                  {sample}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -613,15 +742,15 @@ export function Dashboard() {
             {/* Metrik Kartları */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                {[
-                 { label: "Hata Payı (RMSE)", value: fmtNum(forecast.backtest_metrics.rmse) },
-                 { label: "Günlük Oynaklık", value: fmtPct(forecast.backtest_metrics.volatility_daily), icon: TrendingUp },
-                 { label: "Yıllık Tahmini", value: fmtPct(forecast.backtest_metrics.volatility_annualized), icon: Globe },
-                 { label: "Risk Skoru", value: riskFromVol(forecast.backtest_metrics.volatility_annualized).label, badge: true, icon: ShieldCheck }
+                 { label: "Beklenen değişim", value: expectedChange === null ? "—" : fmtPct(expectedChange), icon: TrendingUp, iconColor: "text-emerald-300" },
+                 { label: "Hata Payı (RMSE)", value: fmtNum(forecast.backtest_metrics.rmse), icon: BarChart3, iconColor: "text-sky-300" },
+                 { label: "Yıllık oynaklık", value: fmtPct(forecast.backtest_metrics.volatility_annualized), icon: Globe, iconColor: "text-indigo-300" },
+                 { label: "Risk Skoru", value: riskFromVol(forecast.backtest_metrics.volatility_annualized).label, badge: true, icon: ShieldCheck, iconColor: "text-amber-300" }
                ].map((m) => (
                  <div key={m.label} className="group rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-md transition-all hover:bg-white/10">
                     <div className="flex items-center justify-between mb-3">
                        <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">{m.label}</p>
-                       {m.icon && <m.icon className={cn("size-4 opacity-40 group-hover:opacity-100 transition-opacity", (m as any).iconColor || "text-primary")} />}
+                       {m.icon && <m.icon className={cn("size-4 opacity-40 transition-opacity group-hover:opacity-100", m.iconColor)} />}
                     </div>
                     <div className="flex items-baseline gap-2">
                        {!m.badge && <span className="text-2xl font-bold text-white tabular-nums">{m.value}</span>}
@@ -703,5 +832,3 @@ export function Dashboard() {
   );
 }
 
-// Helper icons and styles
-import { LineChart, TrendingUp, BarChart3, Zap, ShieldCheck, Globe } from "lucide-react";

@@ -41,7 +41,9 @@ from schemas import (
     QualityResponse,
     SeriesPoint,
     SymbolCompareStats,
+    SymbolSearchResponse,
 )
+from symbol_search import search_symbols
 
 app = FastAPI(title="FinanceScout API", version="0.2.0")
 
@@ -175,25 +177,10 @@ def market_summary() -> MarketSummaryResponse:
     return MarketSummaryResponse(items=[MarketItem(**item) for item in items])
 
 
-STATIC_SYMBOL_SUGGESTIONS = [
-    "BTC-USD",
-    "ETH-USD",
-    "EURUSD=X",
-    "USDTRY=X",
-    "GC=F",
-    "THYAO.IS",
-    "^GSPC",
-    "AAPL",
-]
-
-
-@app.get("/symbols/search")
-def symbols_search(q: str = Query("", min_length=0, max_length=32)) -> dict:
-    q_up = q.strip().upper()
-    if not q_up:
-        return {"symbols": STATIC_SYMBOL_SUGGESTIONS}
-    hits = [s for s in STATIC_SYMBOL_SUGGESTIONS if q_up in s]
-    return {"symbols": hits[:20]}
+@app.get("/symbols/search", response_model=SymbolSearchResponse)
+def symbols_search(q: str = Query("", min_length=0, max_length=64)) -> SymbolSearchResponse:
+    results = search_symbols(q, limit=25)
+    return SymbolSearchResponse(symbols=[r.symbol for r in results], results=results)
 
 
 @app.get("/events", response_model=EventsListResponse)

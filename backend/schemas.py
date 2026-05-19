@@ -12,7 +12,7 @@ RegimeLabel = Literal["low_vol", "high_vol"]
 class ForecastRequest(BaseModel):
     symbol: str = Field(..., min_length=1, description="Yahoo Finance ticker, e.g. BTC-USD, EURUSD=X")
     history_days: int = Field(default=365, ge=30, le=3650)
-    forecast_days: int = Field(default=9, ge=1, le=90)
+    forecast_days: int = Field(default=9, ge=1, le=730)
     asset_class: AssetClassParam = Field(
         default="auto",
         description="auto: ticker kalıbından tahmin; aksi halde Prophet/volatilite profili sabitlenir.",
@@ -219,6 +219,19 @@ class MarketItem(BaseModel):
 
 class MarketSummaryResponse(BaseModel):
     items: list[MarketItem]
+
+
+class SymbolSearchItem(BaseModel):
+    symbol: str
+    name: str
+    exchange: str | None = None
+    quote_type: str | None = None
+    source: str = "yahoo"
+
+
+class SymbolSearchResponse(BaseModel):
+    symbols: list[str]
+    results: list[SymbolSearchItem]
 
 
 class HealthResponse(BaseModel):

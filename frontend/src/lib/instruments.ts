@@ -58,16 +58,15 @@ export function analizForecastHref(symbol: string): string {
 
 export const INSTRUMENTS_BY_CATEGORY: Record<InstrumentCategoryId, InstrumentOption[]> = {
   fx: [
-    { symbol: "USDTRY=X", label: "ABD Doları / Türk Lirası", profile: "fx" },
-    { symbol: "EURTRY=X", label: "Euro / Türk Lirası", profile: "fx" },
-    { symbol: "GBPTRY=X", label: "Sterlin / Türk Lirası", profile: "fx" },
+    { symbol: "USDTRY=X", label: "ABD Doları", profile: "fx" },
+    { symbol: "EURTRY=X", label: "Euro", profile: "fx" },
+    { symbol: "GBPTRY=X", label: "İngiliz Sterlini", profile: "fx" },
+    { symbol: "JPYTRY=X", label: "Japon Yeni", profile: "fx" },
+    { symbol: "CHFTRY=X", label: "İsviçre Frangı", profile: "fx" },
+    { symbol: "KWDTRY=X", label: "Kuveyt Dinarı", profile: "fx" },
     { symbol: "EURUSD=X", label: "Euro / ABD Doları", profile: "fx" },
     { symbol: "GBPUSD=X", label: "Sterlin / ABD Doları", profile: "fx" },
     { symbol: "USDJPY=X", label: "ABD Doları / Japon Yeni", profile: "fx" },
-    { symbol: "USDCHF=X", label: "ABD Doları / İsviçre Frangı", profile: "fx" },
-    { symbol: "AUDUSD=X", label: "Avustralya Doları / ABD Doları", profile: "fx" },
-    { symbol: "USDCAD=X", label: "ABD Doları / Kanada Doları", profile: "fx" },
-    { symbol: "NZDUSD=X", label: "Yeni Zelanda Doları / ABD Doları", profile: "fx" },
   ],
   crypto: [
     { symbol: "BTC-USD", label: "Bitcoin", profile: "crypto" },
