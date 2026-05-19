@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 const LOAD_TIMEOUT_MS = 25_000;
 
-export function MarketSummary() {
+export function MarketSummary({ readonly = false }: { readonly?: boolean }) {
   const [data, setData] = useState<MarketItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,17 +77,9 @@ export function MarketSummary() {
     <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
       {data.map((item) => {
         const isUp = item.change_pct >= 0;
-        return (
-          <Link
-            key={item.symbol}
-            href={analizForecastHref(item.symbol)}
-            className={cn(
-              "flex min-h-[7.5rem] flex-col justify-between rounded-2xl border border-white/15 bg-white/[0.08] p-4 transition-all",
-              "hover:border-sky-400/40 hover:bg-white/[0.14] hover:shadow-lg hover:shadow-sky-500/10",
-              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400",
-            )}
-            aria-label={`${item.name} için analiz merkezinde tahmin aç`}
-          >
+        
+        const Content = (
+          <>
             <div className="flex flex-col">
               <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">
                 {item.symbol}
@@ -108,6 +100,30 @@ export function MarketSummary() {
                 {Math.abs(item.change_pct).toFixed(2)}%
               </div>
             </div>
+          </>
+        );
+
+        const commonClass = cn(
+          "flex min-h-[8rem] flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition-all duration-300 backdrop-blur-sm",
+          !readonly && "hover:border-sky-500/50 hover:bg-white/[0.08] hover:shadow-2xl hover:shadow-sky-500/10 hover:-translate-y-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+        );
+
+        if (readonly) {
+          return (
+            <div key={item.symbol} className={commonClass}>
+              {Content}
+            </div>
+          );
+        }
+
+        return (
+          <Link
+            key={item.symbol}
+            href={analizForecastHref(item.symbol)}
+            className={commonClass}
+            aria-label={`${item.name} için analiz merkezinde tahmin aç`}
+          >
+            {Content}
           </Link>
         );
       })}

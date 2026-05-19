@@ -235,7 +235,7 @@ export function SiteAssistant() {
                     </div>
                   </div>
                   <div className="h-[180px] w-full p-2">
-                    <PriceChart data={mapToChartRows(m.forecastData)} height={160} />
+                    <PriceChart data={mapToChartRows(m.forecastData)} className="h-full min-h-[140px]" />
                   </div>
                 </div>
               )}
