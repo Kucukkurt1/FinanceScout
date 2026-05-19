@@ -60,6 +60,20 @@ function fmtPct(n: number | null | undefined, digits = 2) {
   return `${sign}${(n * 100).toLocaleString("tr-TR", { maximumFractionDigits: digits })}%`;
 }
 
+/** Recharts Tooltip formatter — value undefined veya string gelebilir */
+function fmtRechartsTry(value: unknown): string {
+  if (typeof value === "number" && !Number.isNaN(value)) {
+    return `${value.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} ₺`;
+  }
+  if (value != null && value !== "") {
+    const n = Number(value);
+    if (!Number.isNaN(n)) {
+      return `${n.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} ₺`;
+    }
+  }
+  return "—";
+}
+
 function lastNonNull<T extends { y?: number | null; yhat?: number | null }>(arr: T[], key: "y" | "yhat"): T | null {
   for (let i = arr.length - 1; i >= 0; i--) {
     const v = arr[i][key];
@@ -837,9 +851,9 @@ function PortfolioPanel() {
                         fontSize: 12,
                       }}
                       labelFormatter={(v) => new Date(`${v}T00:00:00`).toLocaleDateString("tr-TR")}
-                      formatter={(value: number, name: string) => [
-                        typeof value === "number" ? `${value.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} ₺` : String(value),
-                        name === "__total" ? "Toplam" : name,
+                      formatter={(value, name) => [
+                        fmtRechartsTry(value),
+                        String(name) === "__total" ? "Toplam" : String(name ?? ""),
                       ]}
                     />
                     <Legend
@@ -914,7 +928,7 @@ function PortfolioPanel() {
                       color: "white",
                       fontSize: 12,
                     }}
-                    formatter={(value: number) => `${value.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} ₺`}
+                    formatter={(value) => fmtRechartsTry(value)}
                   />
                   <Legend wrapperStyle={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.6)" }} iconType="circle" iconSize={8} />
                   <Bar dataKey="value" name="Yatırım" radius={[6, 6, 0, 0]}>
