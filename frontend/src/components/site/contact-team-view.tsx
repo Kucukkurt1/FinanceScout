@@ -18,6 +18,7 @@ export type TeamMember = {
   linkedinUrl?: string;
   photoSrc?: string;
   responsibilities: string[];
+  university?: string;
 };
 
 const TEAM: TeamMember[] = [
@@ -75,17 +76,6 @@ function initials(name: string) {
     .slice(0, 2)
     .toUpperCase();
 }
-
-export type TeamMember = {
-  id: string;
-  name: string;
-  role: string;
-  email: string;
-  linkedinUrl?: string;
-  photoSrc?: string;
-  responsibilities: string[];
-  university?: string;
-};
 
 function MemberPhoto({ member }: { member: TeamMember }) {
   if (member.photoSrc) {
